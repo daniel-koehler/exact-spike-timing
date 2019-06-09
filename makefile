@@ -1,19 +1,28 @@
 CC = gcc
-DEPS = neuro.h statebuf.h
-OBJ = statebuf.o sim.o
+CFLAGS = -Wall
+# Libraries: math.h
+LDFLAGS = -lm
+
+OBJDIR = obj
+SRCDIR = src
+
 TARGET = sim
+SRCS = $(wildcard $(SRCDIR)/*.c)
+OBJS = $(patsubst $(SRCDIR)/%.c,$(OBJDIR)/%.o,$(SRCS))
 
-#%.o: %.c $(DEPS)
-#	$(CC) -c -o $@ $<
+all: dir $(OBJDIR)/$(TARGET)
+	
+dir:
+	mkdir -p $(OBJDIR)
 
-#statebuf.o: statebuf.h statebuf.c
-#	$(CC) -c statebuf.h statebuf.c
+$(OBJDIR)/$(TARGET): $(OBJS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
-#$(TARGET): $(OBJ) neuro.h
-#	$(CC) -o $@ $^ -lm
+$(OBJDIR)/%.o: $(SRCDIR)/%.c
+	$(CC) $(CFLAGS) -c -o $@ $< $(LDFLAGS)
 
-sim: sim.c neuro.h neuro.c statebuf.c statebuf.h interpolation.c interpolation.h
-	$(CC) -o $@ $^ -lm
-
+.PHONY: clean
 clean: 
-	rm -f $(OBJ) $(TARGET) *~
+	rm -f $(OBJS) $(TARGET) *~
+	@echo "Cleaned up build directory."
+

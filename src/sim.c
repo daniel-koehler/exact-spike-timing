@@ -344,6 +344,9 @@ void simulation_loop(sim_t *sim){
     float delay;
     float *factors_t1 = (float *) malloc(sizeof(float) * 7);
     float *factors_t2 = (float *) malloc(sizeof(float) * 7);
+
+    spike_t *spike         = sim->curr_spike;
+
     state_buf_t *state_buf      = sim->state_buf;
     synapse_t   **synapses      = sim->synapses;
     state_t     *state_mem      = sim->state_mem;
@@ -360,6 +363,13 @@ void simulation_loop(sim_t *sim){
         memcpy(tmp_mem, state_mem, sizeof(state_t) * n);
         state_buf_read(state_buf, buffered_state);
         
+        /* Process input spikes */
+        while (spike){
+            if (spike->t > t + sim->max_delay) break;
+            target = spike->index;
+            // TODO
+        }
+
         for(i = 0; i < n; i++){
             /************************* Subthreshold dynamics ***********************/
             /* Neuron emerges from refractory period this update interval */

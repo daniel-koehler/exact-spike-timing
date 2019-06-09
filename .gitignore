@@ -1,0 +1,17 @@
+# object files
+*.o
+*.obj
+
+# precompiled headers
+*.gch
+
+# executables
+*.out
+
+# temp / swap files
+*.swp
+.~
+
+# directories
+/obj
+/*/.vscode
