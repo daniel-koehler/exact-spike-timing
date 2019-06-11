@@ -21,8 +21,10 @@ $(OBJDIR)/$(TARGET): $(OBJS)
 $(OBJDIR)/%.o: $(SRCDIR)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $< $(LDFLAGS)
 
+# make graphics
+
 .PHONY: clean
 clean: 
 	rm -f $(OBJS) $(TARGET) *~
-	@echo "Cleaned up build directory."
+	@echo "Cleaned up obj directory."
 

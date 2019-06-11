@@ -1,7 +1,7 @@
 #ifndef statebuf_h
 #define statebuf_h
 
-#include "neuro.h"
+#include "va_model.h"
 
 typedef struct state_buf_t{
     state_t **states;
@@ -12,8 +12,12 @@ typedef struct state_buf_t{
 } state_buf_t;
 
 state_buf_t *create_buffer(int slots, int slot_size);
-void state_buf_read(state_buf_t *buf, state_t *res);
-void state_buf_write(state_buf_t *buf, state_t *states, int state_len, int rel_slot);
-void state_buf_add(state_buf_t *buf, state_t *state, int index, int rel_slot);
 
+void buf_read(state_buf_t *buf, state_t *res, int index);
+void buf_write(state_buf_t *buf, state_t *state, int index, int rel_slot);
+void buf_add(state_buf_t *buf, state_t *state, int index, int rel_slot);
+
+void buf_read_all(state_buf_t *buf, state_t *res);
+void buf_write_all(state_buf_t *buf, state_t *states, int rel_slot);
+void buf_add_all(state_buf_t *buf, state_t *states, int rel_slot);
 #endif
