@@ -14,4 +14,5 @@
 
 # directories
 /obj
+/results
 /*/.vscode

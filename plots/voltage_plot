@@ -1,0 +1,5 @@
+set title "Membrane voltage"
+set xlabel "Time [ms]"
+set ylabel "Membrane voltage [mV]"
+plot "results/voltage" u 1:2 w l
+pause mouse any "Press any key or button to continue...\n"

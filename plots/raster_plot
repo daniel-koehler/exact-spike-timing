@@ -1,0 +1,7 @@
+set title "Raster plot"
+set xlabel "Time [ms]"
+set ylabel "Neuron index"
+set style line 1 lc rgb 'black' pt 5 ps 0.5
+
+plot "results/raster" u 1:2 with points ls 1
+pause mouse any "Press any key or button to continue...\n"
