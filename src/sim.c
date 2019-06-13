@@ -51,7 +51,8 @@ typedef struct sim_t {
     float t_end;
     float t_input;
 
-    float *factors_h;               // integration factors for time step h  
+    float *factors_h;               // integration factors for time step h
+    float *factors_dt;   
     
     interpolation_t interpolation;  // order of interpolation for exact spike timing
 
@@ -227,7 +228,7 @@ sim_t *setup_sim(void){
     sim->t_end   = t_end   = 100.0;
     sim->t_input = t_input = 50.0;
 
-    sim->n           = n      = 1000;
+    sim->n           = n      = 100;
     sim->ratio_ex_in = ratio  = 4;
     sim->p_conn      = p_conn = 0.02;
     sim->min_delay   = sim->h;
@@ -248,7 +249,8 @@ sim_t *setup_sim(void){
 
     initialize_state_mem(sim);
 
-    sim->factors_h = (float *) malloc(sizeof(float) * 7);
+    sim->factors_h  = (float *) malloc(sizeof(float) * 7);
+    sim->factors_dt = (float *) malloc(sizeof(float) * 7);
     calc_factors(h, sim->factors_h);
     
     sim->fd_raster  = fopen("results/raster", "w+");
@@ -301,6 +303,7 @@ void simulation_loop(sim_t *sim){
     float t_end = sim->t_end;
     float t;
     float h = sim->h;
+    float *factors_dt = sim->factors_dt;
     int n = sim->n;
     int n_syn = sim->n_syn;
 
@@ -308,8 +311,6 @@ void simulation_loop(sim_t *sim){
     float t_em, t_s;
     int target;
     float delay;
-    float *factors_t1 = (float *) malloc(sizeof(float) * 7);
-    float *factors_t2 = (float *) malloc(sizeof(float) * 7);
 
     spike_t *spike = sim->top_spike;
     spike_t *tmp;
@@ -335,8 +336,8 @@ void simulation_loop(sim_t *sim){
             }
             target = spike->index;
             t_s = spike->t - t;
-            calc_factors(h - t_s, factors_t1);
-            calc_update(update, factors_t1, dg_stim, 0);
+            calc_factors(h - t_s, factors_dt);
+            calc_update(update, factors_dt, dg_stim, 0);
             buf_add(sim->state_buf, update, target, 0);
             buf_read(sim->state_buf, test, target);
             tmp = spike;
@@ -351,12 +352,11 @@ void simulation_loop(sim_t *sim){
             /* Neuron emerges from refractory period this update interval */
             if (state_mem[i].t_ela > tau_ref - h && state_mem[i].t_ela <= tau_ref){
                 t_em = state_mem[i].t_ela + h - tau_ref;
-                calc_factors(t_em,     factors_t1);
-                calc_factors(h - t_em, factors_t2);
-                solve_analytic(&state_mem[i], factors_t1);
+                calc_factors(t_em, factors_dt);
+                solve_analytic(&state_mem[i], factors_dt);
                 state_mem[i].V_m = 0;
-                
-                solve_analytic(&state_mem[i], factors_t2);
+                calc_factors(h - t_em, factors_dt);
+                solve_analytic(&state_mem[i], factors_dt);
                 state_add(&state_mem[i], &buffered_state[i]);
                 state_mem[i].V_m -= t_em / h * buffered_state[i].V_m;
             }
@@ -370,21 +370,21 @@ void simulation_loop(sim_t *sim){
             if (state_mem[i].V_m >= V_th){
                 fprintf(sim->fd_raster, "%f %i\n", t, i);
                 t_s = linear_int(tmp_mem[i].V_m, state_mem[i].V_m, V_th, h);
+
                 /* Calculate update */
-                calc_factors(h - t_s, factors_t1);
+                calc_factors(h - t_s, factors_dt);
                 // Note: if a single neuron can have both excitatory and inhibitory synapses
-                // the calculation of the update has to be done in the loop below
-                
-                if (synapses[i][0].type == 0){
-                    calc_update(update, factors_t1, 0, synapses[i][0].weight);
+                // the calculation of the update has to be done in the loop below              
+                if (synapses[i][0].type == 0){  // inhibitory synapse
+                    calc_update(update, factors_dt, 0, synapses[i][0].weight);
                 }
-                else{
-                    calc_update(update, factors_t1, synapses[i][0].weight, 0);
+                else{   // excitatory synapse
+                    calc_update(update, factors_dt, synapses[i][0].weight, 0);
                 }
                 
                 for(j = 0; j < n_syn; j++){
                     target = synapses[i][j].target;
-                    delay  = synapses[i][j].delay / h;  // TODO check if the result is right
+                    delay  = synapses[i][j].delay / h;
                     buf_add(state_buf, update, target, delay);
                 }
 
