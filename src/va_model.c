@@ -1,6 +1,13 @@
 #include <math.h>
 #include "va_model.h"
 
+state_t ZERO_STATE = (state_t){
+    .t_ela  = 0.0,
+    .V_m    = 0.0,
+    .g_ex   = 0.0,
+    .g_in   = 0.0
+};
+
 float state_size = 4;
 float E_rest     = 0.0;
 float E_L        = -60.0;
@@ -10,7 +17,8 @@ float dg_ex      = 0.27;
 float dg_in      = 4.5;
 float dg_stim    = 0.27;
 float E_avg      = -60.0;
-float I_inj      = 120.0;
+//float I_inj      = 120.0;
+float I_inj      = 0.0;
 float R_L        = 0.1;
 float V_th       = 10.0;
 float tau_ref    = 5.0;
@@ -28,7 +36,7 @@ int c4 = 1;     // = (tau_L^2 + tau_ex*tau_in + tau_ex*tau_L + tau_in*tau_L)/((t
 void solve_analytic(state_t *state, float *factors){
     /*
     Exponential integration of state variables in 'state'. 'factors' are calculated in
-    'calc_factors()' based on the time interval.
+    'calc_factors()' based on the time interval for exponential integration.
     */
     state->t_ela += factors[0];
     state->g_ex   = factors[1] * state->g_ex;
@@ -82,22 +90,30 @@ float voltage_deriv(float t, float V_m, float g_ex, float g_in){
     + g_in * R_L * tau_in * (E_in - E_rest)/(tau_L - tau_in) * (exp(-t/tau_in)/tau_in - exp(-t/tau_L)/tau_L);
 }
 
-void state_add(state_t *s1, state_t *s2, state_t *res){
+void state_add(state_t *s1, state_t *s2){
     /*
-    Adds all state variables: *res = *s1 + *s2
+    Adds all state variables: *s1 = *s1 + *s2
     */
-    res->t_ela = s1->t_ela + s2->t_ela;
-    res->V_m = s1->V_m + s2->V_m;
-    res->g_ex = s1->g_ex + s2->g_ex;
-    res->g_in = s1->g_in + s2->g_in;
+    s1->t_ela = s1->t_ela + s2->t_ela;
+    s1->V_m   = s1->V_m   + s2->V_m;
+    s1->g_ex  = s1->g_ex  + s2->g_ex;
+    s1->g_in  = s1->g_in  + s2->g_in;
 }
 
-void state_sub(state_t *s1, state_t *s2, state_t *res){
+void state_sub(state_t *s1, state_t *s2){
     /*
-    Adds all state variables: *res = *s1 - *s2
+    Adds all state variables: *s1 = *s1 - *s2
     */
-    res->t_ela = s1->t_ela - s2->t_ela;
-    res->V_m = s1->V_m - s2->V_m;
-    res->g_ex = s1->g_ex - s2->g_ex;
-    res->g_in = s1->g_in - s2->g_in;
+    s1->t_ela = s1->t_ela - s2->t_ela;
+    s1->V_m   = s1->V_m   - s2->V_m;
+    s1->g_ex  = s1->g_ex  - s2->g_ex;
+    s1->g_in  = s1->g_in  - s2->g_in;
+}
+
+state_t *rep_state(state_t *s, int n){
+    state_t *res = (state_t *) malloc(sizeof(state_t) * n);
+    for(int i = 0; i < n; i++){
+        res[i] = *s;
+    }
+    return res;
 }

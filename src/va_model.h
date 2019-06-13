@@ -1,6 +1,16 @@
 #ifndef va_model_h
 #define va_model_h
 
+/* State variables of Vogels Abbot neuron model */
+typedef struct state_t {
+    float t_ela;
+    float V_m;
+    float g_ex;
+    float g_in;
+} state_t;
+
+extern state_t ZERO_STATE;
+
 /* Parameters of Vogels Abbott neuron model */
 extern float state_size;
 extern float E_rest;
@@ -26,14 +36,6 @@ extern int c2;      // = (E_avg - E_in) * R_L * tau_L / (tau_L - tau_in)
 extern int c3;      // = I_inj * R_L
 extern int c4;      // = (tau_L^2 + tau_ex*tau_in + tau_ex*tau_L + tau_in*tau_L)/((tau_ex + tau_L)*(tau_in + tau_L))
 
-/* State variables of Vogels Abbot neuron model */
-typedef struct state_t {
-    float t_ela;
-    float V_m;
-    float g_ex;
-    float g_in;
-} state_t;
-
 /* Exponential integration */
 void solve_analytic(state_t *state, float *factors);
 void calc_factors(float dt, float *factors);
@@ -45,6 +47,7 @@ float cubic_int(float y0, float y0_dot, float yh, float yh_dot, float yth, float
 float voltage_deriv(float t, float V_m, float g_ex, float g_in);
 
 /* Auxiliary functions for handling states*/
-void state_add(state_t *s1, state_t *s2, state_t *res);
-void state_sub(state_t *s1, state_t *s2, state_t *res);
+void state_add(state_t *s1, state_t *s2);
+void state_sub(state_t *s1, state_t *s2);
+state_t *rep_state(state_t *s, int n);
 #endif

@@ -1,3 +1,11 @@
+/*
+Defines 'state_buf_t' which is a buffer that can hold the state variables of multiple 
+neurons for multiple time slots. E.g. create_buffer(3, 5) returns a buffer that holds
+the state variables of 5 neurons for 3 different time slots.
+
+Also provides functions to read, write and add state variables to the buffer.
+*/
+
 #include <stdlib.h>
 #include <stdio.h>
 #include "statebuf.h"
@@ -5,7 +13,7 @@
 
 state_buf_t *create_buffer(int slots, int slot_size){
     /*
-    Creates a state buffer. 'states' is a multidimensional array of size slots x slot_size.
+    Creates a buffer that stores state variables in 'states' (a multidimensional array of size slots x slot_size).
     */
     state_buf_t *buf = (state_buf_t *) malloc(sizeof(state_buf_t));
     buf->slots     = slots;
@@ -15,11 +23,7 @@ state_buf_t *create_buffer(int slots, int slot_size){
     for(int i = 0; i < slots; i++){
         buf->states[i] = malloc(sizeof(state_t) * slot_size);
         for(int j = 0; j < slot_size; j++){
-            buf->states[i][j] = (state_t) {
-                .t_ela  = 0.0,
-                .V_m    = 0.0,
-                .g_ex   = 0.0,
-                .g_in   = 0.0};
+            buf->states[i][j] = ZERO_STATE;
         }
     }
     buf->curr_slot = 0;
@@ -30,11 +34,13 @@ void buf_read(state_buf_t *buf, state_t *res, int index){
     /*
     Reads the state variables of neuron 'index' buffered for current time slot and writes them to the address pointed by *res.
     */
-    res = &buf->states[buf->curr_slot][index];
+    *res = buf->states[buf->curr_slot][index];
 }
 
 void buf_write(state_buf_t *buf, state_t *state, int index, int rel_slot){
     /*
+    Writes state variables in 'state' into the buffer for neuron 'index'.
+    'rel_slot' is the slot index relative to 'curr_slot' of the buffer.
     */
     if (rel_slot > buf->slots || rel_slot < 0){
         printf("Invalid 'rel_slot': %i.\n", rel_slot);
@@ -47,6 +53,8 @@ void buf_write(state_buf_t *buf, state_t *state, int index, int rel_slot){
 
 void buf_add(state_buf_t *buf, state_t *state, int index, int rel_slot){
     /*
+    Increments state variables for neuron 'index' by the ones in 'state'.
+    'rel_slot' is the slot index relative to 'curr_slot' of the buffer.
     */
    if (index >= buf->slot_size || index < 0){
         printf("Invalid 'index': %i.\n", index);
@@ -58,13 +66,18 @@ void buf_add(state_buf_t *buf, state_t *state, int index, int rel_slot){
     }
     int abs_slot = buf->curr_slot + rel_slot;
     if(abs_slot >= buf->slots) abs_slot -= buf->slots;
-    buf->states[abs_slot][index] = *state;      // TODO: is that right?
+    state_add(&buf->states[abs_slot][index], state);
 }
 
 void buf_read_all(state_buf_t *buf, state_t *res){
+    /*
+    Reads buffered state variables for all neurons, clears the current slot of the buffer and increments 'curr_slot'.
+    */   
     for(int i = 0; i < buf->slot_size; i++){
         buf_read(buf, &res[i], i);
     }
+    //buf_write_all(buf, &ZERO_STATE, 0);
+    buf_write_all(buf, rep_state(&ZERO_STATE, buf->slot_size), 0);
     buf->curr_slot += 1;
     if(buf->curr_slot >= buf->slots) buf->curr_slot = 0;
 };
