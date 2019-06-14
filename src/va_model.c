@@ -109,11 +109,3 @@ void state_sub(state_t *s1, state_t *s2){
     s1->g_ex  = s1->g_ex  - s2->g_ex;
     s1->g_in  = s1->g_in  - s2->g_in;
 }
-
-state_t *rep_state(state_t *s, int n){
-    state_t *res = (state_t *) malloc(sizeof(state_t) * n);
-    for(int i = 0; i < n; i++){
-        res[i] = *s;
-    }
-    return res;
-}

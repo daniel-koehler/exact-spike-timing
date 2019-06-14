@@ -18,7 +18,6 @@ state_buf_t *create_buffer(int slots, int slot_size){
     state_buf_t *buf = (state_buf_t *) malloc(sizeof(state_buf_t));
     buf->slots     = slots;
     buf->slot_size = slot_size;
-    buf->size      = slots * slot_size;
     buf->states = (state_t **) malloc(sizeof(state_t*) * slots);
     for(int i = 0; i < slots; i++){
         buf->states[i] = malloc(sizeof(state_t) * slot_size);
@@ -28,6 +27,17 @@ state_buf_t *create_buffer(int slots, int slot_size){
     }
     buf->curr_slot = 0;
     return buf;
+}
+
+void free_buffer(state_buf_t * buf){
+    /*
+    Free allocated memory of buf.
+    */
+    for(int i = 0; i < buf->slots; i++){
+        free(buf->states[i]);
+    }
+    free(buf->states);
+    free(buf);
 }
 
 void buf_read(state_buf_t *buf, state_t *res, int index){
@@ -75,9 +85,8 @@ void buf_read_all(state_buf_t *buf, state_t *res){
     */   
     for(int i = 0; i < buf->slot_size; i++){
         buf_read(buf, &res[i], i);
+        buf_write(buf, &ZERO_STATE, i, 0);
     }
-    //buf_write_all(buf, &ZERO_STATE, 0);
-    buf_write_all(buf, rep_state(&ZERO_STATE, buf->slot_size), 0);
     buf->curr_slot += 1;
     if(buf->curr_slot >= buf->slots) buf->curr_slot = 0;
 };

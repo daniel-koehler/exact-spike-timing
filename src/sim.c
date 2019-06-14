@@ -241,8 +241,8 @@ sim_t *setup_sim(void){
     sim->rand_delays = false;
 
     /* create stimulus */
-    sim->top_spike = (spike_t *) malloc(sizeof(spike_t));
-    sim->next_spike  = (spike_t *) malloc(sizeof(spike_t));
+    //sim->top_spike = (spike_t *) malloc(sizeof(spike_t));
+    //sim->next_spike  = (spike_t *) malloc(sizeof(spike_t));
     create_events(sim, t_start, t_input, t_avg);
 
     create_network(sim);
@@ -255,7 +255,7 @@ sim_t *setup_sim(void){
     
     sim->fd_raster  = fopen("results/raster", "w+");
     sim->fd_voltage = fopen("results/voltage", "w+");
-    if ( (sim->fd_raster == NULL) || (sim->fd_voltage == NULL) ){
+    if ( (!sim->fd_raster) || (!sim->fd_voltage) ){
         printf("Could not open files to save results. Exit.\n");
         exit(1);
     }
@@ -263,9 +263,36 @@ sim_t *setup_sim(void){
 
 }
 
+void free_spikes(spike_t *top_spike){
+    spike_t *tmp;
+    while(top_spike){
+        tmp = top_spike;
+        top_spike = top_spike->next;
+        free(tmp);
+    }
+}
+
 void clear_sim(sim_t *sim){
-    if (sim->fd_raster) fclose(sim->fd_raster);
-    if (sim->fd_voltage) fclose(sim->fd_voltage);
+    /*
+    Free allocated memory
+    */
+    if (sim){      
+        if (sim->synapses){
+            for(int i = 0; i < sim->n; i++){
+                free(sim->synapses[i]);
+            }
+            free(sim->synapses);
+        }
+        if (sim->state_mem)     free(sim->state_mem);
+        if (sim->factors_h)     free(sim->factors_h);
+        if (sim->factors_dt)    free(sim->factors_dt);
+        if (sim->state_buf)     free_buffer(sim->state_buf);
+        if (sim->top_spike)     free_spikes(sim->top_spike);
+        if (sim->fd_raster)     fclose(sim->fd_raster);
+        if (sim->fd_voltage)    fclose(sim->fd_voltage);
+    }
+    free(sim);
+    
 }
 
 void print_state_mem(sim_t *sim){
@@ -313,7 +340,6 @@ void simulation_loop(sim_t *sim){
     float delay;
 
     spike_t *spike = sim->top_spike;
-    spike_t *tmp;
 
     state_buf_t *state_buf      = sim->state_buf;
     synapse_t   **synapses      = sim->synapses;
@@ -322,7 +348,6 @@ void simulation_loop(sim_t *sim){
     state_t     *buffered_state = (state_t *) malloc(sizeof(state_t) * n);
     state_t     *update         = (state_t *) malloc(sizeof(state_t));
 
-    state_t     *test = (state_t *) malloc(sizeof(state_t));
     for(t=t_start; t <= t_end; t+=h){
         /*if (fmod(t, 5) < h){
             printf("%f\n", t);
@@ -331,7 +356,7 @@ void simulation_loop(sim_t *sim){
         /* Process input spikes */
         while (spike){
             if (spike->t > t + sim->min_delay){
-                sim->top_spike = spike;
+                sim->next_spike = spike;
                 break;
             }
             target = spike->index;
@@ -339,10 +364,7 @@ void simulation_loop(sim_t *sim){
             calc_factors(h - t_s, factors_dt);
             calc_update(update, factors_dt, dg_stim, 0);
             buf_add(sim->state_buf, update, target, 0);
-            buf_read(sim->state_buf, test, target);
-            tmp = spike;
             spike = spike->next;
-            free(tmp);
         }
         /* Update interval (t, t+h] */
         memcpy(tmp_mem, state_mem, sizeof(state_t) * n);
@@ -398,6 +420,10 @@ void simulation_loop(sim_t *sim){
             fprintf(sim->fd_voltage, "%f %f\n", t, state_mem[0].V_m);
         }
     }
+
+    free(update);
+    free(tmp_mem);
+    free(buffered_state);
 }
 
 int main(void){

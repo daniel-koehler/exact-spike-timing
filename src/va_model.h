@@ -49,5 +49,4 @@ float voltage_deriv(float t, float V_m, float g_ex, float g_in);
 /* Auxiliary functions for handling states*/
 void state_add(state_t *s1, state_t *s2);
 void state_sub(state_t *s1, state_t *s2);
-state_t *rep_state(state_t *s, int n);
 #endif

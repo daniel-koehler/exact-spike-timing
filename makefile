@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall
+CFLAGS = -Wall -g
 # Libraries: math.h
 LDFLAGS = -lm
 
