@@ -5,17 +5,22 @@ LDFLAGS = -lm
 
 OBJDIR = obj
 SRCDIR = src
-RESPATH = results
+RESDIR = results
+PLOTDIR = plots
 
 TARGET = sim
 SRCS = $(wildcard $(SRCDIR)/*.c)
 OBJS = $(patsubst $(SRCDIR)/%.c,$(OBJDIR)/%.o,$(SRCS))
+PLOTS_ = $(wildcard $(PLOTDIR)/*)
+PLOTS = $(patsubst $(PLOTDIR)/%,%,$(PLOTS_))
 
 all: dir $(OBJDIR)/$(TARGET)
 	
+test:
+	@echo $(PLOTS_)
 dir:
-	mkdir -p $(OBJDIR)
-	mkdir -p $(RESPATH)
+	@mkdir -p $(OBJDIR)
+	@mkdir -p $(RESDIR)
 
 $(OBJDIR)/$(TARGET): $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
@@ -24,11 +29,12 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $< $(LDFLAGS)
 
 # make graphics using gnuplot
-raster: plots/raster_plot
-	gnuplot $^
+.PHONY: plots
+plots:
+	@echo "Available plots:\n"$(PLOTS)
 
-voltage: plots/voltage_plot
-	gnuplot $^
+$(PLOTS):
+	gnuplot $(PLOTDIR)/$@
 
 .PHONY: clean
 clean: 

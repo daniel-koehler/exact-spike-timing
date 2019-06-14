@@ -56,6 +56,11 @@ typedef struct sim_t {
     
     interpolation_t interpolation;  // order of interpolation for exact spike timing
 
+    /* external stimulus / spikes */
+    spike_t *next_input;
+    spike_t *top_input;
+
+    /* internal spikes (used to plot ISI distribution) */
     spike_t *next_spike;
     spike_t *top_spike;
     int spike_cnt;
@@ -67,6 +72,7 @@ typedef struct sim_t {
     /* FILE objects used to save simulation results */
     FILE *fd_raster;
     FILE *fd_voltage; 
+    FILE *fd_isi;
 } sim_t;
 
 int compare_spikes(const void *p1, const void *p2){
@@ -81,6 +87,27 @@ int compare_spikes(const void *p1, const void *p2){
     else return 0;
 }
 
+spike_t *sort_spikes(spike_t *head, int spike_cnt){
+    /* 
+    Sorts spikes in a linked list based on their time t returns the new head of the list.
+    */
+    spike_t *curr_spike = head;
+    spike_t **spike_array = (spike_t **) malloc(sizeof(spike_t *)*spike_cnt);
+    int i = 0;
+    while(curr_spike){
+        spike_array[i++] = curr_spike;
+        curr_spike = curr_spike->next;
+    }
+    qsort(spike_array, spike_cnt, sizeof(spike_t *), compare_spikes);
+    for(i = 0; i < spike_cnt - 1; i++){
+        spike_array[i]->next = spike_array[i+1];
+    }
+    spike_array[spike_cnt - 1]->next = NULL;
+    curr_spike = spike_array[0];
+    free(spike_array);
+    return curr_spike;
+}
+
 void create_events(sim_t *sim, float t_start, float t_end, float t_avg){
     /*
     Creates a poisson distributed input spike train for each neuron.
@@ -89,9 +116,9 @@ void create_events(sim_t *sim, float t_start, float t_end, float t_avg){
     int i;
     float dt;
     int     spike_cnt    = 0;
-    spike_t *new_spike   = NULL;
-    spike_t *first_spike = NULL;
-    spike_t *next_spike  = NULL;
+    spike_t *new_input   = NULL;
+    spike_t *top_input = NULL;
+    spike_t *next_input  = NULL;
 
     for(i = 0; i < n; i++){
         for(float t = t_start; t <= t_end; ){
@@ -103,38 +130,36 @@ void create_events(sim_t *sim, float t_start, float t_end, float t_avg){
             }
 
             /* Create a new input spike */
-            new_spike        = (spike_t *) malloc(sizeof(spike_t));
-            new_spike->t     = t;
-            new_spike->index = i;
-            new_spike->next  = NULL;
+            new_input        = (spike_t *) malloc(sizeof(spike_t));
+            new_input->t     = t;
+            new_input->index = i;
+            new_input->next  = NULL;
 
-            if (first_spike == NULL){
-                sim->top_spike = sim->next_spike = first_spike = new_spike;
+            if (top_input == NULL){
+                sim->top_input = sim->next_input = top_input = new_input;
             }
             else{
-                next_spike->next = new_spike;
+                next_input->next = new_input;
             }
-            next_spike = new_spike;
+            next_input = new_input;
             spike_cnt++;
         }
     }
-    sim->spike_cnt = spike_cnt;
-
-    /* Sort spikes */
-    i             = 0;
-    next_spike    = first_spike;
+    sim->top_input = sort_spikes(top_input, spike_cnt);
+    /*next_input = top_input;
     spike_t **spike_array = (spike_t **) malloc(sizeof(spike_t *)*spike_cnt);
-    while(next_spike){
-        spike_array[i++] = next_spike;
-        next_spike = next_spike->next;
+    i = 0;
+    while(next_input){
+        spike_array[i++] = next_input;
+        next_input = next_input->next;
     }
     qsort(spike_array, spike_cnt, sizeof(spike_t *), compare_spikes);
     for(i = 0; i < spike_cnt - 1; i++){
         spike_array[i]->next = spike_array[i+1];
     }
     spike_array[spike_cnt - 1]->next = NULL;
-    sim->top_spike = spike_array[0];
-    free(spike_array);
+    sim->top_input = spike_array[0];
+    free(spike_array);*/
 }
 
 void initialize_state_mem(sim_t *sim){
@@ -174,7 +199,6 @@ void create_network(sim_t *sim){
     float max_delay  = sim->max_delay;
     float min_delay  = sim->min_delay;
     float delay, weight;
-    printf("nEx: %i, nSyn: %i\n", n_ex, n_syn);
     synapse_t **synapses = (synapse_t **) malloc(sizeof(synapse_t *) * n);
     for(i = 0; i < n; i++){
         synapses[i] = (synapse_t *) malloc(sizeof(synapse_t) * n_syn);
@@ -202,7 +226,6 @@ void create_network(sim_t *sim){
             synapses[i][j].weight = weight;            
         }
     }
-    //printf("CN: Index: %i, Weight: %f\n", 0, synapses[0][0].weight);
     sim->synapses = synapses;
 }
 
@@ -239,10 +262,10 @@ sim_t *setup_sim(void){
     sim->min_delay   = h;
     sim->max_delay   = 10*h;
     sim->rand_delays = false;
+    
+    sim->top_spike   = NULL;
+    sim->spike_cnt   = 0;
 
-    /* create stimulus */
-    //sim->top_spike = (spike_t *) malloc(sizeof(spike_t));
-    //sim->next_spike  = (spike_t *) malloc(sizeof(spike_t));
     create_events(sim, t_start, t_input, t_avg);
 
     create_network(sim);
@@ -255,7 +278,8 @@ sim_t *setup_sim(void){
     
     sim->fd_raster  = fopen("results/raster", "w+");
     sim->fd_voltage = fopen("results/voltage", "w+");
-    if ( (!sim->fd_raster) || (!sim->fd_voltage) ){
+    sim->fd_isi     = fopen("results/isi", "w+");
+    if ( (!sim->fd_raster) || (!sim->fd_voltage) || (!sim->fd_isi) ){
         printf("Could not open files to save results. Exit.\n");
         exit(1);
     }
@@ -263,11 +287,11 @@ sim_t *setup_sim(void){
 
 }
 
-void free_spikes(spike_t *top_spike){
+void free_spikes(spike_t *top_input){
     spike_t *tmp;
-    while(top_spike){
-        tmp = top_spike;
-        top_spike = top_spike->next;
+    while(top_input){
+        tmp = top_input;
+        top_input = top_input->next;
         free(tmp);
     }
 }
@@ -287,9 +311,11 @@ void clear_sim(sim_t *sim){
         if (sim->factors_h)     free(sim->factors_h);
         if (sim->factors_dt)    free(sim->factors_dt);
         if (sim->state_buf)     free_buffer(sim->state_buf);
+        if (sim->top_input)     free_spikes(sim->top_input);
         if (sim->top_spike)     free_spikes(sim->top_spike);
         if (sim->fd_raster)     fclose(sim->fd_raster);
         if (sim->fd_voltage)    fclose(sim->fd_voltage);
+        if (sim->fd_isi)        fclose(sim->fd_isi);
     }
     free(sim);
     
@@ -304,11 +330,11 @@ void print_state_mem(sim_t *sim){
     }
 }
 
-void print_spikes(sim_t *sim){
-    spike_t *top_spike = sim->top_spike;
-    while(top_spike){
-        printf("Neuron %i at %f ms\n", top_spike->index, top_spike->t);
-        top_spike = top_spike->next;
+void print_spikes(spike_t *head){
+    spike_t *curr_spike = head;
+    while(curr_spike){
+        printf("Neuron %i at %f ms\n", curr_spike->index, curr_spike->t);
+        curr_spike = curr_spike->next;
     }
 }
 
@@ -318,7 +344,20 @@ void calc_update(state_t *update, float *factors, float g_ex, float g_in){
     update->g_in = g_in;
     solve_analytic(update, factors);
     update->t_ela = 0;
-    //printf("gex: %f, gin: %f - update V_m: %f, gEx: %f\n", g_ex, g_in, update->V_m, update->g_ex);
+}
+
+void calc_isi(spike_t *head, int spike_cnt, FILE *fd){
+    /* 
+    Calculates interspike interval of spikes in a linked list and writes them into a file.
+    */
+    sort_spikes(head, spike_cnt);
+    spike_t *curr_spike = head->next;
+    float t0 = head->t;
+    while(curr_spike){
+        fprintf(fd, "%f\n", curr_spike->t - t0);
+        t0 = curr_spike->t;
+        curr_spike = curr_spike->next;
+    }
 }
 
 void simulation_loop(sim_t *sim){
@@ -339,7 +378,7 @@ void simulation_loop(sim_t *sim){
     int target;
     float delay;
 
-    spike_t *spike = sim->top_spike;
+    spike_t *spike = sim->top_input;
 
     state_buf_t *state_buf      = sim->state_buf;
     synapse_t   **synapses      = sim->synapses;
@@ -356,7 +395,7 @@ void simulation_loop(sim_t *sim){
         /* Process input spikes */
         while (spike){
             if (spike->t > t + sim->min_delay){
-                sim->next_spike = spike;
+                sim->next_input = spike;
                 break;
             }
             target = spike->index;
@@ -411,6 +450,19 @@ void simulation_loop(sim_t *sim){
                 }
 
                 state_mem[i].t_ela = 0;
+
+                /* Save spikes in linked list */
+                if (!sim->top_spike){
+                    sim->top_spike = sim->next_spike = (spike_t *) malloc(sizeof(spike_t));
+                }
+                else{
+                    sim->next_spike->next = (spike_t *) malloc(sizeof(spike_t));
+                    sim->next_spike = sim->next_spike->next;
+                }
+                sim->next_spike->next   = NULL;
+                sim->next_spike->index  = i;
+                sim->next_spike->t      = t + t_s;
+                sim->spike_cnt         += 1;
             }
 
             /* Neuron is in refractory period - clamp to resting potential */
@@ -428,9 +480,8 @@ void simulation_loop(sim_t *sim){
 
 int main(void){
     sim_t *sim = setup_sim();
-
     simulation_loop(sim);
-
+    calc_isi(sim->top_spike, sim->spike_cnt, sim->fd_isi);
     clear_sim(sim);
 }
 
