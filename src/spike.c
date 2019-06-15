@@ -39,10 +39,17 @@ spike_t *sort_spikes(spike_t *head, int spike_cnt){
     else return NULL;
 }
 
+void print_spike(spike_t *spike){
+    printf("Neuron %i at %f ms\n", spike->index, spike->t);
+}
+
 void print_spikes(spike_t *head){
+    /*
+    Print all spikes contained in a linked list.
+    */
     spike_t *curr_spike = head;
     while(curr_spike){
-        printf("Neuron %i at %f ms\n", curr_spike->index, curr_spike->t);
+        print_spike(curr_spike);
         curr_spike = curr_spike->next;
     }
 }

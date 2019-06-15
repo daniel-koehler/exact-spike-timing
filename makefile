@@ -23,7 +23,7 @@ dir:
 	@mkdir -p $(RESDIR)
 
 run:
-	$(OBJDIR)/$(TARGET)
+	@$(OBJDIR)/$(TARGET)
 
 debug:
 	valgrind -v --leak-check=full $(OBJDIR)/$(TARGET)
