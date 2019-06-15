@@ -2,14 +2,17 @@ set title "Distribution of interspike intervals"
 set xlabel "Interspike interval [ms]"
 set ylabel "Absolute frequency"
 
-set boxwidth 0.08 absolute
+#number of bins
+n = 20
+min = 0
+max = 100
+bin_width = (max-min)/n;
+box_width = bin_width * 0.9
+
+set boxwidth box_width absolute
 set style fill solid 1.0 border
 
-bin_width = 0.1;
+bin(x)=bin_width*floor(x/bin_width)+bin_width/2.0
 
-bin_number(x) = floor(x/bin_width)
-
-rounded(x) = bin_width * ( bin_number(x) + 0.5 )
-
-plot "results/isi" using (rounded($1)):(1) smooth frequency with boxes linecolor rgb 'black'
+plot "results/isi" using (bin($1)):(1) smooth frequency with boxes linecolor rgb 'black'
 pause mouse any "Press any key or button to continue...\n"
