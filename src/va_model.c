@@ -1,4 +1,5 @@
 #include <math.h>
+#include <stdio.h>
 #include "va_model.h"
 
 state_t ZERO_STATE = (state_t){
@@ -17,8 +18,7 @@ float dg_ex      = 0.27;
 float dg_in      = 4.5;
 float dg_stim    = 0.27;
 float E_avg      = -60.0;
-//float I_inj      = 120.0;
-float I_inj      = 0.0;
+float I_inj      = 110.0;
 float R_L        = 0.1;
 float V_th       = 10.0;
 float tau_ref    = 5.0;
@@ -28,10 +28,10 @@ float tau_stim   = 1.0 / 10.0;
 float tau_L      = 1.0 / 20.0;
 
 /* Some pre-calculated constants for integration */
-int c1 = 2;     // = (E_avg - E_ex) * R_L * tau_L / (tau_L - tau_ex)
-int c2 = -2;    // = (E_avg - E_in) * R_L * tau_L / (tau_L - tau_in)
-int c3 = 11;    // = I_inj * R_L
-int c4 = 1;     // = (tau_L^2 + tau_ex*tau_in + tau_ex*tau_L + tau_in*tau_L)/((tau_ex + tau_L)*(tau_in + tau_L))
+float c1 = 2;     // = (E_avg - E_ex) * R_L * tau_L / (tau_L - tau_ex)
+float c2 = -2;    // = (E_avg - E_in) * R_L * tau_L / (tau_L - tau_in)
+float c3 = 11;    // = I_inj * R_L
+float c4 = 1;     // = (tau_L^2 + tau_ex*tau_in + tau_ex*tau_L + tau_in*tau_L)/((tau_ex + tau_L)*(tau_in + tau_L))
 
 void solve_analytic(state_t *state, float *factors){
     /*
@@ -56,7 +56,6 @@ void calc_factors(float dt, float *factors){
     factors[5] = (factors[3] - factors[2]) * c2;
     factors[6] = exp(tau_L * dt) * c3 * (c4 - factors[3]);
 }
-
 
 float linear_int(float y0, float yh, float yth, float h){
     /*
@@ -90,7 +89,7 @@ float voltage_deriv(float t, float V_m, float g_ex, float g_in){
     + g_in * R_L * tau_in * (E_in - E_rest)/(tau_L - tau_in) * (exp(-t/tau_in)/tau_in - exp(-t/tau_L)/tau_L);
 }
 
-void state_add(state_t *s1, state_t *s2){
+void add_state(state_t *s1, state_t *s2){
     /*
     Adds all state variables: *s1 = *s1 + *s2
     */
@@ -100,7 +99,7 @@ void state_add(state_t *s1, state_t *s2){
     s1->g_in  = s1->g_in  + s2->g_in;
 }
 
-void state_sub(state_t *s1, state_t *s2){
+void sub_state(state_t *s1, state_t *s2){
     /*
     Adds all state variables: *s1 = *s1 - *s2
     */
@@ -109,3 +108,9 @@ void state_sub(state_t *s1, state_t *s2){
     s1->g_ex  = s1->g_ex  - s2->g_ex;
     s1->g_in  = s1->g_in  - s2->g_in;
 }
+
+void print_state(state_t *s){
+    printf("t_ela = %.2f, V_m = %.2f, g_ex = %.2f, g_in = %.2f\n",\
+            s->t_ela,     s->V_m,     s->g_ex,     s->g_in);
+}
+

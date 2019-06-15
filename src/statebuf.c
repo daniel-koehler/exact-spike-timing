@@ -76,7 +76,7 @@ void buf_add(state_buf_t *buf, state_t *state, int index, int rel_slot){
     }
     int abs_slot = buf->curr_slot + rel_slot;
     if(abs_slot >= buf->slots) abs_slot -= buf->slots;
-    state_add(&buf->states[abs_slot][index], state);
+    add_state(&buf->states[abs_slot][index], state);
 }
 
 void buf_read_all(state_buf_t *buf, state_t *res){

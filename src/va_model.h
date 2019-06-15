@@ -31,10 +31,10 @@ extern float tau_stim;
 extern float tau_L;
 
 /* Precalculated constants to speed up calculation of integration factors */
-extern int c1;      // = (E_avg - E_ex) * R_L * tau_L / (tau_L - tau_ex)
-extern int c2;      // = (E_avg - E_in) * R_L * tau_L / (tau_L - tau_in)
-extern int c3;      // = I_inj * R_L
-extern int c4;      // = (tau_L^2 + tau_ex*tau_in + tau_ex*tau_L + tau_in*tau_L)/((tau_ex + tau_L)*(tau_in + tau_L))
+extern float c1;      // = (E_avg - E_ex) * R_L * tau_L / (tau_L - tau_ex)
+extern float c2;      // = (E_avg - E_in) * R_L * tau_L / (tau_L - tau_in)
+extern float c3;      // = I_inj * R_L
+extern float c4;      // = (tau_L^2 + tau_ex*tau_in + tau_ex*tau_L + tau_in*tau_L)/((tau_ex + tau_L)*(tau_in + tau_L))
 
 /* Exponential integration */
 void solve_analytic(state_t *state, float *factors);
@@ -47,6 +47,8 @@ float cubic_int(float y0, float y0_dot, float yh, float yh_dot, float yth, float
 float voltage_deriv(float t, float V_m, float g_ex, float g_in);
 
 /* Auxiliary functions for handling states*/
-void state_add(state_t *s1, state_t *s2);
-void state_sub(state_t *s1, state_t *s2);
+void add_state(state_t *s1, state_t *s2);
+void sub_state(state_t *s1, state_t *s2);
+void print_state(state_t *s);
+
 #endif
