@@ -22,6 +22,12 @@ dir:
 	@mkdir -p $(OBJDIR)
 	@mkdir -p $(RESDIR)
 
+run:
+	$(OBJDIR)/$(TARGET)
+
+debug:
+	valgrind -v --leak-check=full $(OBJDIR)/$(TARGET)
+
 $(OBJDIR)/$(TARGET): $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
