@@ -74,6 +74,15 @@ typedef struct sim_t {
     FILE *fd_stats;
 } sim_t;
 
+void print_state_mem(sim_t *sim){
+    state_t *state_mem = sim->state_mem;
+    int   n          = sim->n;
+    for(int i=0; i<n; i++){
+        printf("Index %i: t_ela = %.2f, V_m = %.2f, g_ex = %.2f, g_in = %.2f\n", i, state_mem[i].t_ela,\
+        state_mem[i].V_m, state_mem[i].g_ex, state_mem[i].g_in);
+    }
+}
+
 void create_events(sim_t *sim){
     /*
     Creates a poisson distributed input spike train for each neuron.
@@ -117,7 +126,7 @@ void setup_parameters(sim_t *sim){
     Setup all important parameters of the simulation.
     */
     sim->n       = 4000;
-    sim->h       = 0.05;
+    sim->h       = 0.01;
     sim->t_start = 0.0;
     sim->t_end   = 1000.0;
     sim->t_input = 50.0;
@@ -151,10 +160,9 @@ void initialize_state_mem(sim_t *sim){
     sim->update         = (state_t *) malloc(sizeof(state_t));
 
     for(i = 0; i < n; i++){
-        state_mem[i].t_ela = tau_ref;
         if (sim->rand_states){
             state_mem[i] = (state_t) {
-            .t_ela  = tau_ref,
+            .t_ela = tau_ref + h,
             .V_m    = frand() * (V_th - E_rest) + E_rest,
             .g_ex   = frand() * dg_ex * 5,
             .g_in   = frand() * dg_in * 5};
@@ -162,7 +170,7 @@ void initialize_state_mem(sim_t *sim){
         else
         {
             state_mem[i] = (state_t) {
-            .t_ela  = tau_ref,
+            .t_ela = tau_ref + h,
             .V_m    = 0.0,
             .g_ex   = 0.0,
             .g_in   = 0.0};
@@ -187,7 +195,6 @@ void create_network(sim_t *sim){
         for(j = 0; j < n_syn; j++){
             /* Target index */
             synapses[i][j].target = floor(frand()*n);
-
             /* Synaptic propagation delays */
             if(sim->rand_delays){               
                 delay = frand()*(max_delay - min_delay) + min_delay;
@@ -289,15 +296,6 @@ void clear_sim(sim_t *sim){
     }
     free(sim);
     
-}
-
-void print_state_mem(sim_t *sim){
-    state_t *state_mem = sim->state_mem;
-    int   n          = sim->n;
-    for(int i=0; i<n; i++){
-        printf("Index %i: t_ela = %.2f, V_m = %.2f, g_ex = %.2f, g_in = %.2f\n", i, state_mem[i].t_ela,\
-        state_mem[i].V_m, state_mem[i].g_ex, state_mem[i].g_in);
-    }
 }
 
 void calc_update(state_t *update, float *factors, float g_ex, float g_in){
@@ -466,6 +464,7 @@ void process_spike(sim_t *sim, int i, float t){
     state_t     *update         = sim->update;
     state_buf_t *state_buf      = sim->state_buf;
     float       *factors_dt     = sim->factors_dt;
+    float       *constants      = sim->constants;
     synapse_t   **synapses      = sim->synapses;
     float h = sim->h;
     float t_s, delay;
@@ -499,9 +498,8 @@ void process_spike(sim_t *sim, int i, float t){
 
     /* Calculate update */
     // Note: if a single neuron can have both excitatory and inhibitory synapses
-    // the calculation of the update has to be done in the loop below  
-
-    calc_factors(h - t_s, factors_dt, sim->constants);            
+    // the calculation of the update has to be done in the loop below
+    calc_factors(h - t_s, factors_dt, constants);            
     if (synapses[i][0].type == inhibitory){
         calc_update(update, factors_dt, 0, synapses[i][0].weight);
     }
@@ -543,9 +541,7 @@ void simulation_loop(sim_t *sim){
     float t_output = 0.1 * (t_end - t_start);
     float h = sim->h;
     int   n = sim->n;
-
     state_t     *state_mem = sim->state_mem;
-
     for(t=t_start; t <= t_end; t+=h){
         if (t >= t_output){
             printf("t = %.0f ms\n", t);
@@ -569,8 +565,8 @@ void simulation_loop(sim_t *sim){
             }
         }
         /* Write state variables to output files */
-        fprintf(sim->fd_voltage, "%f %f\n", t, state_mem[0].V_m);
-        fprintf(sim->fd_conductance, "%f %f %f\n", t, state_mem[0].g_ex, -state_mem[0].g_in);
+        fprintf(sim->fd_voltage, "%f %f\n", t, state_mem[990].V_m);
+        fprintf(sim->fd_conductance, "%f %f %f\n", t, state_mem[990].g_ex, -state_mem[990].g_in);
     }
 }
 
@@ -578,5 +574,5 @@ int main(void){
     sim_t *sim = setup_sim();
     simulation_loop(sim);
     statistics(sim);
-    clear_sim(sim);   
+    clear_sim(sim);
 }
