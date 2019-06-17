@@ -9,29 +9,26 @@ state_t ZERO_STATE = (state_t){
     .g_in   = 0.0
 };
 
-float state_size = 4;
-float E_rest     = 0.0;
-float E_L        = -60.0;
-float E_ex       = 0.0;
-float E_in       = -80.0;
-float dg_ex      = 0.27;
-float dg_in      = 4.5;
-float dg_stim    = 0.27;
-float E_avg      = -60.0;
-float I_inj      = 110.0;
-float R_L        = 0.1;
-float V_th       = 10.0;
-float tau_ref    = 5.0;
-float tau_ex     = 1.0 / 5.0;
-float tau_in     = 1.0 / 10.0;
-float tau_stim   = 1.0 / 10.0;
-float tau_L      = 1.0 / 20.0;
+const float E_rest     = 0.0;
+const float E_L        = -60.0;
+const float E_ex       = 0.0;
+const float E_in       = -80.0;
+const float dg_ex      = 0.27;
+const float dg_in      = 4.5;
+const float dg_stim    = 0.27;
+const float I_inj      = 110.0;
+const float I_inj      = 0.0;
+const float R_L        = 0.1;
+const float V_th       = 10.0;
+const float tau_ref    = 5.0;
+const float tau_ex     = 1.0 / 5.0;
+const float tau_in     = 1.0 / 10.0;
+const float tau_stim   = 1.0 / 10.0;
+const float tau_L      = 1.0 / 20.0;
 
-/* Some pre-calculated constants for integration */
-float c1 = 2;     // = (E_avg - E_ex) * R_L * tau_L / (tau_L - tau_ex)
-float c2 = -2;    // = (E_avg - E_in) * R_L * tau_L / (tau_L - tau_in)
-float c3 = 11;    // = I_inj * R_L
-float c4 = 1;     // = (tau_L^2 + tau_ex*tau_in + tau_ex*tau_L + tau_in*tau_L)/((tau_ex + tau_L)*(tau_in + tau_L))
+const float STATE_SIZE  = 4;
+const int NUM_CONSTANTS = 4;
+const int NUM_FACTORS   = 7;
 
 void solve_analytic(state_t *state, float *factors){
     /*
@@ -44,17 +41,27 @@ void solve_analytic(state_t *state, float *factors){
     state->V_m    = factors[3] * state->V_m + factors[4] * state->g_ex + factors[5] * state->g_in + factors[6];
 }
 
-void calc_factors(float dt, float *factors){
+void calc_constants(float *constants){
     /*
-    Calculate the integration factors for time interval dt and write them to factors.
+    Calculates 4 float constants for integration and writes them to constants.
+    */
+    constants[0] = (E_L - E_ex) * R_L * tau_L / (tau_L - tau_ex);
+    constants[1] = (E_L - E_in) * R_L * tau_L / (tau_L - tau_in);
+    constants[2] = I_inj * R_L;
+    constants[3] = (pow(tau_L, 2) + tau_ex*tau_in + tau_ex*tau_L + tau_in*tau_L)/((tau_ex + tau_L)*(tau_in + tau_L));
+}
+
+void calc_factors(float dt, float *factors, float *constants){
+    /*
+    Calculates 7 float integration factors for time interval dt and writes them to factors.
     */
     factors[0] = dt;
     factors[1] = exp(-tau_ex * dt);
     factors[2] = exp(-tau_in * dt);
     factors[3] = exp(-tau_L  * dt);
-    factors[4] = (factors[3] - factors[1]) * c1;
-    factors[5] = (factors[3] - factors[2]) * c2;
-    factors[6] = exp(tau_L * dt) * c3 * (c4 - factors[3]);
+    factors[4] = (factors[3] - factors[1]) * constants[0];
+    factors[5] = (factors[3] - factors[2]) * constants[1];
+    factors[6] = exp(tau_L * dt) * constants[2] * (constants[3] - factors[3]);
 }
 
 float linear_int(float y0, float yh, float yth, float h){
@@ -82,11 +89,8 @@ float cubic_int(float y0, float y0_dot, float yh, float yh_dot, float yth, float
     return 1.0;
 }
 
-float voltage_deriv(float t, float V_m, float g_ex, float g_in){
-    // TODO: check and simplify
-    return -V_m/tau_L * exp(-t/tau_L)\
-    + g_ex * R_L * tau_ex * (E_ex - E_rest)/(tau_L - tau_ex) * (exp(-t/tau_ex)/tau_ex - exp(-t/tau_L)/tau_L)\
-    + g_in * R_L * tau_in * (E_in - E_rest)/(tau_L - tau_in) * (exp(-t/tau_in)/tau_in - exp(-t/tau_L)/tau_L);
+float voltage_deriv(float V_m, float g_ex, float g_in){
+    return (-V_m + R_L * (g_ex * (E_ex - E_rest) + g_in * (E_in - E_rest) + I_inj))/tau_L;
 }
 
 void add_state(state_t *s1, state_t *s2){

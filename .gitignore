@@ -12,6 +12,9 @@
 *.swp
 .~
 
+#files
+links
+
 # directories
 /obj
 /results

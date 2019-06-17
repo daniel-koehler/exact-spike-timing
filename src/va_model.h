@@ -11,40 +11,45 @@ typedef struct state_t {
 
 extern state_t ZERO_STATE;
 
-/* Parameters of Vogels Abbott neuron model */
-extern float state_size;
-extern float E_rest;
-extern float E_L;
-extern float E_ex;
-extern float E_in;
-extern float dg_ex;
-extern float dg_in;
-extern float dg_stim;
-extern float E_avg;
-extern float I_inj;
-extern float R_L;
-extern float V_th;
-extern float tau_ref;
-extern float tau_ex;
-extern float tau_in;
-extern float tau_stim;
-extern float tau_L;
+typedef enum interpolation_t {
+    NONE,
+    LINEAR,
+    QUADRATIC,
+    CUBIC
+} interpolation_t;
 
-/* Precalculated constants to speed up calculation of integration factors */
-extern float c1;      // = (E_avg - E_ex) * R_L * tau_L / (tau_L - tau_ex)
-extern float c2;      // = (E_avg - E_in) * R_L * tau_L / (tau_L - tau_in)
-extern float c3;      // = I_inj * R_L
-extern float c4;      // = (tau_L^2 + tau_ex*tau_in + tau_ex*tau_L + tau_in*tau_L)/((tau_ex + tau_L)*(tau_in + tau_L))
+/* Parameters of Vogels Abbott neuron model */
+extern const float state_size;
+extern const float E_rest;
+extern const float E_L;
+extern const float E_ex;
+extern const float E_in;
+extern const float dg_ex;
+extern const float dg_in;
+extern const float dg_stim;
+extern const float I_inj;
+extern const float R_L;
+extern const float V_th;
+extern const float tau_ref;
+extern const float tau_ex;
+extern const float tau_in;
+extern const float tau_stim;
+extern const float tau_L;
+
+/* Number of constants and factors for exponential integration */
+extern const int NUM_CONSTANTS;
+extern const int NUM_FACTORS;
 
 /* Exponential integration */
 void solve_analytic(state_t *state, float *factors);
-void calc_factors(float dt, float *factors);
+void calc_constants(float *constants);
+void calc_factors(float dt, float *factors, float *constants);
 
 /* Interpolation for exact spike timing */
 float linear_int(float y0, float yh, float yth, float h);
 float quadratic_int(float y0, float y0_dot, float yh, float yth, float h);
 float cubic_int(float y0, float y0_dot, float yh, float yh_dot, float yth, float h);
-float voltage_deriv(float t, float V_m, float g_ex, float g_in);
+float voltage_deriv(float V_m, float g_ex, float g_in);
 
 /* Auxiliary functions for handling states*/
 void add_state(state_t *s1, state_t *s2);

@@ -11,7 +11,7 @@ int compare_spikes(const void *p1, const void *p2){
     spike_t *spike2 = *(spike_t **) p2;
 
     if(spike1->t < spike2->t) return -1;
-    if(spike1->t > spike2->t) return 1;
+    if(spike1->t > spike2->t) return  1;
     else return 0;
 }
 
@@ -58,11 +58,11 @@ spike_t *append_spike(spike_t *spike, float t, int idx){
     /*
     Appends a spike to node 'spike' and returns pointer to it.
     */
-    spike->next = (spike_t *) malloc(sizeof(spike_t));
-    spike = spike->next;
-    spike->next   = NULL;
-    spike->index  = idx;
-    spike->t      = t;
+    spike->next  = (spike_t *) malloc(sizeof(spike_t));
+    spike        = spike->next;
+    spike->next  = NULL;
+    spike->index = idx;
+    spike->t     = t;
     return spike;
 }
 
