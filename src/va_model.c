@@ -17,7 +17,6 @@ const float dg_ex      = 0.27;
 const float dg_in      = 4.5;
 const float dg_stim    = 0.27;
 const float I_inj      = 110.0;
-const float I_inj      = 0.0;
 const float R_L        = 0.1;
 const float V_th       = 10.0;
 const float tau_ref    = 5.0;

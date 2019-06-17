@@ -69,6 +69,8 @@ typedef struct sim_t {
     FILE *fd_voltage;
     FILE *fd_conductance;
     FILE *fd_isi;
+    FILE *fd_firingrate;
+    FILE *fd_avgvoltage;
     FILE *fd_stats;
 } sim_t;
 
@@ -81,7 +83,7 @@ void create_events(sim_t *sim){
     float dt;
     int     spike_cnt    = 0;
     spike_t *new_input   = NULL;
-    spike_t *top_input = NULL;
+    spike_t *top_input   = NULL;
     spike_t *next_input  = NULL;
 
     for(i = 0; i < n; i++){
@@ -114,12 +116,12 @@ void setup_parameters(sim_t *sim){
     /* 
     Setup all important parameters of the simulation.
     */
-    sim->n       = 1;
-    sim->h       = 0.1;
+    sim->n       = 4000;
+    sim->h       = 0.05;
     sim->t_start = 0.0;
-    sim->t_end   = 100.0;
-    sim->t_input = 0.0;
-    sim->t_avg   = 4.0;    
+    sim->t_end   = 1000.0;
+    sim->t_input = 50.0;
+    sim->t_avg   = 4.0;
     sim->r_ei    = 4;
     sim->p_conn  = 0.02;
     sim->interpolation = NONE;    
@@ -244,8 +246,10 @@ sim_t *setup_sim(void){
     sim->fd_voltage     = fopen("results/voltage", "w+");
     sim->fd_conductance = fopen("results/conductance", "w+");
     sim->fd_isi         = fopen("results/isi", "w+");
+    sim->fd_firingrate  = fopen("results/firingrate", "w+");
+    sim->fd_avgvoltage  = fopen("results/avgvoltage", "w+");
     sim->fd_stats       = fopen("results/stats.txt", "w+");
-    if ( (!sim->fd_raster) || (!sim->fd_voltage) || (!sim->fd_isi) || (!sim->fd_stats) || (!sim->fd_conductance)){
+    if ( (!sim->fd_raster) || (!sim->fd_voltage) || (!sim->fd_isi) || (!sim->fd_stats) || (!sim->fd_conductance) || (!sim->fd_firingrate)){
         printf("Could not open files to save results. Exit.\n");
         exit(1);
     }
@@ -279,6 +283,8 @@ void clear_sim(sim_t *sim){
         if (sim->fd_voltage)        fclose(sim->fd_voltage);
         if (sim->fd_conductance)    fclose(sim->fd_conductance);
         if (sim->fd_isi)            fclose(sim->fd_isi);
+        if (sim->fd_firingrate)     fclose(sim->fd_firingrate);
+        if (sim->fd_avgvoltage)     fclose(sim->fd_avgvoltage);
         if (sim->fd_stats)          fclose(sim->fd_stats);
     }
     free(sim);
@@ -302,13 +308,48 @@ void calc_update(state_t *update, float *factors, float g_ex, float g_in){
     update->t_ela = 0;
 }
 
+float calc_avgvoltage(state_t *state_mem, int n, FILE *fd){
+    int sum = 0;
+    for (int i = 0; i < n; i++){
+        fprintf(fd, "%f\n", state_mem[i].V_m);
+        sum += state_mem[i].V_m;
+    }
+    return sum/n;
+}
+
+float calc_firingrate(spike_t *head, int n, float t_span, FILE *fd){
+    /*
+    Calculates the average firing rate of each neuron and returns average firing rate of all neurons.
+    */
+    if(head){
+        spike_t *curr_spike = head;
+        int count[n];
+    int   i   = 0;
+    float sum = 0.0;
+        for(i = 0; i < n; i++){
+            count[i] = 0;
+        }
+        while(curr_spike){
+            i = curr_spike->index;
+            count[i] += 1;
+            curr_spike = curr_spike->next;        
+        }
+        for(i = 0; i < n; i++){
+            sum += count[i];
+            fprintf(fd, "%d\n", count[i]);
+        }
+        return sum/n;
+    }
+    else return 0.0;
+}
+
 float calc_isi(spike_t *head, int n, int spike_cnt, FILE *fd){
     /* 
     Calculates interspike intervals (ISIs) and writes them into a file. Returns avergage ISI.
     */
     head = sort_spikes(head, spike_cnt);
     if(head){
-        spike_t *curr_spike = head->next;
+        spike_t *spike = head;
         float t0[n];
         int i, j = 0;
         float isi;
@@ -316,19 +357,19 @@ float calc_isi(spike_t *head, int n, int spike_cnt, FILE *fd){
         for(i = 0; i < n; i++){
             t0[i] = 0;
         }
-        while(curr_spike){
-            i = curr_spike->index;
+        while(spike){
+            i = spike->index;
             if (t0[i] == 0){    // first spike of neuron i
-                t0[i] = curr_spike->t;   
+                t0[i] = spike->t;   
             }
             else{
-                isi  = curr_spike->t - t0[i];
+                isi  = spike->t - t0[i];
                 sum += isi;
                 j++;
-                fprintf(fd, "%f\n", curr_spike->t - t0[i]);
-                t0[i] = curr_spike->t;         
+                fprintf(fd, "%f\n", spike->t - t0[i]);
+                t0[i] = spike->t;         
             }
-            curr_spike = curr_spike->next;        
+            spike = spike->next;        
         }
         return sum/j;
     }
@@ -342,7 +383,9 @@ void statistics(sim_t *sim){
     state_t *state_mem = sim->state_mem;
 
     float mean_isi = calc_isi(sim->top_spike, sim->n, sim->spike_cnt, sim->fd_isi);
-    float mean_V_m = 0.0, mean_g_ex = 0.0, mean_g_in = 0.0;
+    float mean_firingrate = calc_firingrate(sim->top_spike, sim->n, sim->t_end - sim->t_start, sim->fd_firingrate);
+    float mean_V_m = calc_avgvoltage(state_mem, sim->n, sim->fd_avgvoltage);
+    float mean_g_ex = 0.0, mean_g_in = 0.0;
     int spike_cnt  = sim->spike_cnt;
     for (int i = 0; i < sim->n; i++){
         mean_V_m  += state_mem[i].V_m;
@@ -358,6 +401,7 @@ void statistics(sim_t *sim){
     fprintf(sim->fd_stats, "Average exc. conductance: %.2f nS\n", mean_g_ex);
     fprintf(sim->fd_stats, "Average inh. conductance: %.2f nS\n", mean_g_in);
     fprintf(sim->fd_stats, "Average interspike interval: %.2f ms\n", mean_isi);
+    fprintf(sim->fd_stats, "Average firing rate : %.2f ms\n", mean_firingrate);
 }
 
 void process_input(sim_t *sim, float t){
@@ -523,11 +567,10 @@ void simulation_loop(sim_t *sim){
             if (state_mem[i].t_ela < tau_ref){
                 state_mem[i].V_m = E_rest;
             }
-
-            /* Write state variables to output files */
-            fprintf(sim->fd_voltage, "%f %f\n", t, state_mem[0].V_m);
-            fprintf(sim->fd_conductance, "%f %f %f\n", t, state_mem[0].g_ex, -state_mem[0].g_in);
         }
+        /* Write state variables to output files */
+        fprintf(sim->fd_voltage, "%f %f\n", t, state_mem[0].V_m);
+        fprintf(sim->fd_conductance, "%f %f %f\n", t, state_mem[0].g_ex, -state_mem[0].g_in);
     }
 }
 
