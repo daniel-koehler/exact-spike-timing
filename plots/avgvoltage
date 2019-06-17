@@ -1,12 +1,12 @@
-set title "Distribution of interspike intervals"
-set xlabel "Interspike interval [ms]"
+set title "Distribution of average membrane voltages"
+set xlabel "Average membrane voltage [mV]"
 set ylabel "Absolute frequency"
 set key off
 
 #number of bins
-n = 50
-min = 0
-max = 800
+n = 30
+min = -15
+max = 15
 bin_width = (max-min)/n;
 box_width = bin_width * 0.9
 
@@ -17,6 +17,5 @@ set xrange [min:max]
 
 bin(x)=bin_width*floor(x/bin_width)+bin_width/2.0
 
-plot "results/isi" using (bin($1)):(1) smooth frequency with boxes linecolor rgb 'black'
-
+plot "results/avgvoltage" using (bin($1)):(1) smooth frequency with boxes linecolor rgb 'black'
 pause mouse any "Press any key or button to continue...\n"
