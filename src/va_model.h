@@ -44,6 +44,8 @@ extern const int NUM_FACTORS;
 void solve_analytic(state_t *state, float *factors);
 void calc_constants(float *constants);
 void calc_factors(float dt, float *factors, float *constants);
+float **calc_lut(float h, float denom);
+void free_lut(float **lut, float denom);
 
 /* Interpolation for exact spike timing */
 float linear_int(float y0, float yh, float yth, float h);
@@ -55,5 +57,6 @@ float voltage_deriv(float V_m, float g_ex, float g_in);
 void add_state(state_t *s1, state_t *s2);
 void sub_state(state_t *s1, state_t *s2);
 void print_state(state_t *s);
+void print_factors(float *fac);
 
 #endif

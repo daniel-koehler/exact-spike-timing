@@ -1,5 +1,6 @@
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "va_model.h"
 
 state_t ZERO_STATE = (state_t){
@@ -63,6 +64,32 @@ void calc_factors(float dt, float *factors, float *constants){
     factors[6] = exp(tau_L * dt) * constants[2] * (constants[3] - factors[3]);
 }
 
+float **calc_lut(float h, float denom){
+    /*
+    Generates a lookup table for integration factors for the time range [0, h].
+    The lookup table has a resolution of 'h / denom' and thus 'denom + 1' entries.
+    */
+    float t;
+    int i;
+    float resolution = h / denom;
+    float *constants = (float *) malloc(sizeof(float) * NUM_CONSTANTS);
+    calc_constants(constants);
+    float **lut = (float **) malloc(sizeof(float *) * denom);
+
+    for(t = 0.0, i = 0; i <= denom; t += resolution, i++){
+        lut[i] = (float *) malloc(sizeof(float) * NUM_FACTORS);
+        calc_factors(t, lut[i], constants);        
+    }
+    return lut;
+}
+
+void free_lut(float **lut, float denom){
+    for(int i = 0; i <= denom; i++){
+        free(lut[i]);
+    }
+    free(lut);
+}
+
 float linear_int(float y0, float yh, float yth, float h){
     /*
     Uses linear interpolation of form y(t) = (yh-y0)/h * t + y0 to determine the intersection of y(t) with yth.
@@ -115,5 +142,10 @@ void sub_state(state_t *s1, state_t *s2){
 void print_state(state_t *s){
     printf("t_ela = %.2f, V_m = %.2f, g_ex = %.2f, g_in = %.2f\n",\
             s->t_ela,     s->V_m,     s->g_ex,     s->g_in);
+}
+
+void print_factors(float *fac){
+    printf("f0 = %.6f, f1 = %.6f, f2 = %.6f, f3 = %.6f, f4 = %.6f, f5 = %.6f, f6 = %.6f\n",\
+            fac[0],    fac[1],    fac[2],    fac[3],    fac[4],    fac[5],    fac[6]);
 }
 

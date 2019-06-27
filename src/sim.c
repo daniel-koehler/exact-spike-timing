@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <string.h>
+#include <time.h>
 #include "statebuf.h"
 #include "va_model.h"
 #include "spike.h"
@@ -43,7 +44,9 @@ typedef struct sim_t {
     /* Factors and constants for exponential integration */
     float *constants;
     float *factors_h;
-    float *factors_dt;   
+    float *factors_dt;
+    float denom;
+    float **lut;
     
     interpolation_t interpolation;
 
@@ -126,14 +129,14 @@ void setup_parameters(sim_t *sim){
     Setup all important parameters of the simulation.
     */
     sim->n       = 4000;
-    sim->h       = 0.01;
+    sim->h       = 0.1;
     sim->t_start = 0.0;
     sim->t_end   = 1000.0;
     sim->t_input = 50.0;
     sim->t_avg   = 4.0;
     sim->r_ei    = 4;
     sim->p_conn  = 0.02;
-    sim->interpolation = NONE;    
+    sim->interpolation = LINEAR;    
     sim->min_delay   = sim->h;
     sim->max_delay   = 10 * sim->h;
     sim->rand_delays = false;
@@ -243,10 +246,14 @@ sim_t *setup_sim(void){
     initialize_state_mem(sim);
 
     sim->constants  = (float *) malloc(sizeof(float) * NUM_CONSTANTS);
-    sim->factors_h  = (float *) malloc(sizeof(float) * NUM_FACTORS);
-    sim->factors_dt = (float *) malloc(sizeof(float) * NUM_FACTORS);
+
+    sim->denom      = 100;
+    sim->lut        = calc_lut(sim->h, sim->denom);
+
+    //sim->factors_h  = (float *) malloc(sizeof(float) * NUM_FACTORS);
+    //sim->factors_dt = (float *) malloc(sizeof(float) * NUM_FACTORS);
     calc_constants(sim->constants);
-    calc_factors(sim->h, sim->factors_h, sim->constants);
+    //calc_factors(sim->h, sim->factors_h, sim->constants);
     
     /* Open output files */
     sim->fd_raster      = fopen("results/raster", "w+");
@@ -279,6 +286,7 @@ void clear_sim(sim_t *sim){
         if (sim->constants)         free(sim->constants);
         if (sim->factors_h)         free(sim->factors_h);
         if (sim->factors_dt)        free(sim->factors_dt);
+        if (sim->lut)               free_lut(sim->lut, sim->denom);
         if (sim->state_buf)         free_buffer(sim->state_buf);
         if (sim->tmp_mem)           free(sim->tmp_mem);
         if (sim->buffered_state)    free(sim->buffered_state);
@@ -408,11 +416,15 @@ void process_input(sim_t *sim, float t){
     */
     spike_t *spike = sim->next_input;
     float t_s;
+    int idx;
     while(spike){
         if (spike->t > t + sim->min_delay) break;
         t_s = spike->t - t;
+        idx = t_s / sim->h * sim->denom;
+        /*
         calc_factors(sim->h - t_s, sim->factors_dt, sim->constants);
-        calc_update(sim->update, sim->factors_dt, dg_stim, 0);
+        calc_update(sim->update, sim->factors_dt, dg_stim, 0);*/
+        calc_update(sim->update, sim->lut[idx], dg_stim, 0);
         buf_add(sim->state_buf, sim->update, spike->index, 0);
         spike = spike->next;
     }
@@ -429,10 +441,13 @@ void subthreshold_dynamics(sim_t *sim, int i){
     float   *factors_dt     = sim->factors_dt;
     state_t *state_mem      = sim->state_mem;
     state_t *buffered_state = sim->buffered_state;
+    int idx;
 
     /* Standard timing */
-    if (sim->interpolation == NONE){   
-        solve_analytic(&state_mem[i], sim->factors_h);
+    if (sim->interpolation == NONE){
+        idx = sim->denom;   
+        //solve_analytic(&state_mem[i], sim->factors_h);
+        solve_analytic(&state_mem[i], sim->lut[idx]);
         add_state(&state_mem[i], &buffered_state[i]);
     }
 
@@ -442,17 +457,23 @@ void subthreshold_dynamics(sim_t *sim, int i){
         /* Neuron emerges from refractory period this update interval */
         if (state_mem[i].t_ela > tau_ref - h && state_mem[i].t_ela <= tau_ref){
             t_em = state_mem[i].t_ela + h - tau_ref;
-            calc_factors(t_em, factors_dt, constants);
-            solve_analytic(&state_mem[i], factors_dt);
+            idx = t_em / sim->h * sim->denom;
+            /*calc_factors(t_em, factors_dt, constants);
+            solve_analytic(&state_mem[i], factors_dt);*/
+            solve_analytic(&state_mem[i], sim->lut[idx]);
             state_mem[i].V_m = 0;
-            calc_factors(h - t_em, factors_dt, constants);
-            solve_analytic(&state_mem[i], factors_dt);
+            idx = (h-t_em) / sim->h * sim->denom;
+            /*calc_factors(h - t_em, factors_dt, constants);
+            solve_analytic(&state_mem[i], factors_dt);*/
+            solve_analytic(&state_mem[i], sim->lut[idx]);
             add_state(&state_mem[i], &buffered_state[i]);
             state_mem[i].V_m -= t_em / h * buffered_state[i].V_m;
         }
         /* Neuron does not emerge from refractory period */
         else{
-            solve_analytic(&state_mem[i], sim->factors_h);
+            //solve_analytic(&state_mem[i], sim->factors_h);
+            idx = sim->denom;
+            solve_analytic(&state_mem[i], sim->lut[idx]);
             add_state(&state_mem[i], &buffered_state[i]);
         }
     }
@@ -471,7 +492,7 @@ void process_spike(sim_t *sim, int i, float t){
     float y0 = tmp_mem[i].V_m;
     float yh = state_mem[i].V_m;
     float y0_dot, yh_dot;
-    int target;
+    int target, idx;
 
     /* Calculate spike time */
     switch (sim->interpolation){
@@ -499,12 +520,15 @@ void process_spike(sim_t *sim, int i, float t){
     /* Calculate update */
     // Note: if a single neuron can have both excitatory and inhibitory synapses
     // the calculation of the update has to be done in the loop below
-    calc_factors(h - t_s, factors_dt, constants);            
+    idx = (h - t_s) / sim->h * sim->denom;
+    //calc_factors(h - t_s, factors_dt, constants);            
     if (synapses[i][0].type == inhibitory){
-        calc_update(update, factors_dt, 0, synapses[i][0].weight);
+        //calc_update(update, factors_dt, 0, synapses[i][0].weight);
+        calc_update(update, sim->lut[idx], 0, synapses[i][0].weight);
     }
     else{
-        calc_update(update, factors_dt, synapses[i][0].weight, 0);
+        //calc_update(update, factors_dt, synapses[i][0].weight, 0);
+        calc_update(update, sim->lut[idx], synapses[i][0].weight, 0);
     }
     
     /* Propagate spike to each target neuron */
@@ -534,7 +558,6 @@ void simulation_loop(sim_t *sim){
     /*
     Main loop of the time based simulation
     */
-
     float t_start = sim->t_start;
     float t_end   = sim->t_end;
     float t;
@@ -572,7 +595,14 @@ void simulation_loop(sim_t *sim){
 
 int main(void){
     sim_t *sim = setup_sim();
+    clock_t start, end;
+    float simulation_time;
+    start = clock();
     simulation_loop(sim);
+    end = clock();
+    simulation_time = ((float) (end - start) / CLOCKS_PER_SEC);
+    printf("Simulation time: %f s\n", simulation_time);
     statistics(sim);
+    print_factors(sim->lut[(int) 100]);
     clear_sim(sim);
 }
