@@ -4,7 +4,7 @@
 typedef struct spike {
     float   t;
     int     index;
-    struct spike_t *next;
+    struct spike *next;
 } spike_t;
 
 int compare_spikes(const void *p1, const void *p2);
