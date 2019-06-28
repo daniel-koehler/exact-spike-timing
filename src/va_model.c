@@ -1,6 +1,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "va_model.h"
 
 state_t ZERO_STATE = (state_t){
@@ -43,20 +44,20 @@ void solve_analytic(state_t *state, float *factors){
     state->V_m    = factors[3] * state->V_m + factors[4] * state->g_ex + factors[5] * state->g_in + factors[6];
 }
 
-void calc_constants(float *constants){
-    /*
-    Calculates 4 float constants for integration and writes them to constants.
-    */
-    constants[0] = (E_L - E_ex) * R_L * tau_L / (tau_L - tau_ex);
-    constants[1] = (E_L - E_in) * R_L * tau_L / (tau_L - tau_in);
-    constants[2] = I_inj * R_L;
-    constants[3] = (pow(tau_L, 2) + tau_ex*tau_in + tau_ex*tau_L + tau_in*tau_L)/((tau_ex + tau_L)*(tau_in + tau_L));
-}
-
-void calc_factors(float dt, float *factors, float *constants){
+void calc_factors(float dt, float *factors){
     /*
     Calculates 7 float integration factors for time interval dt and writes them to factors.
     */
+
+    /* Integration constants - calculated only once */
+    static float constants[4] = {0};
+    if(!constants[0]){
+        constants[0] = (E_L - E_ex) * R_L * tau_L / (tau_L - tau_ex);
+        constants[1] = (E_L - E_in) * R_L * tau_L / (tau_L - tau_in);
+        constants[2] = I_inj * R_L;
+        constants[3] = (pow(tau_L, 2) + tau_ex*tau_in + tau_ex*tau_L + tau_in*tau_L)/((tau_ex + tau_L)*(tau_in + tau_L));
+    }
+
     factors[0] = dt;
     factors[1] = exp(-tau_ex * dt);
     factors[2] = exp(-tau_in * dt);
@@ -77,27 +78,23 @@ void generate_lut(float h, int denom){
     lut.t_max = h;
     lut.denom = denom;
     lut.idx_factor = denom/h;
-    float *constants = (float *) malloc(sizeof(float) * NUM_CONSTANTS);
-    calc_constants(constants);
-
     lut.values = (float **) malloc(sizeof(float *) * (denom + 1));
     for(t = 0.0, i = 0; i <= denom; t += resolution, i++){
         lut.values[i] = (float *) malloc(sizeof(float) * NUM_FACTORS);
-        calc_factors(t, lut.values[i], constants);        
+        calc_factors(t, lut.values[i]);        
     }
-    free(constants);
 }
 
-float *lookup(float t){
+void lookup(float t, float *factors){
     /*
     Returns integration factors for time t stored in lut. generate_lut() has to be called before once.
     */
     if(t > lut.t_max || t < 0.0){
-        return NULL;
+        return;
     }
     int idx = lut.idx_factor * t;
-    printf("Time: %f Index: %i, Factor: %i\n", t, idx, lut.idx_factor);
-    return lut.values[idx];
+    memcpy(factors, lut.values[idx], 28);
+    //memcpy(factors, lut.values[idx], sizeof(float) * NUM_FACTORS);
 }
 
 void free_lut(){
@@ -164,4 +161,3 @@ void print_factors(float *fac){
     printf("f0 = %.6f, f1 = %.6f, f2 = %.6f, f3 = %.6f, f4 = %.6f, f5 = %.6f, f6 = %.6f\n",\
             fac[0],    fac[1],    fac[2],    fac[3],    fac[4],    fac[5],    fac[6]);
 }
-

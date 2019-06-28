@@ -51,9 +51,9 @@ extern const int NUM_FACTORS;
 /* Exponential integration */
 void solve_analytic(state_t *state, float *factors);
 void calc_constants(float *constants);
-void calc_factors(float dt, float *factors, float *constants);
+void calc_factors(float dt, float *factors);
 void generate_lut(float h, int denom);
-float *lookup(float t);
+void lookup(float t, float * factors);
 void free_lut();
 
 /* Interpolation for exact spike timing */
@@ -67,5 +67,4 @@ void add_state(state_t *s1, state_t *s2);
 void sub_state(state_t *s1, state_t *s2);
 void print_state(state_t *s);
 void print_factors(float *fac);
-
 #endif

@@ -26,7 +26,7 @@ run:
 	@$(OBJDIR)/$(TARGET)
 
 debug:
-	valgrind -v --leak-check=full $(OBJDIR)/$(TARGET)
+	valgrind -v --leak-check=full --track-origins=yes $(OBJDIR)/$(TARGET)
 
 $(OBJDIR)/$(TARGET): $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
