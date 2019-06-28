@@ -2,21 +2,28 @@
 #define va_model_h
 
 /* State variables of Vogels Abbot neuron model */
-typedef struct state_t {
+typedef struct state {
     float t_ela;
     float V_m;
     float g_ex;
     float g_in;
 } state_t;
 
-extern state_t ZERO_STATE;
-
-typedef enum interpolation_t {
+typedef enum interpolation {
     NONE,
     LINEAR,
     QUADRATIC,
     CUBIC
 } interpolation_t;
+
+typedef struct lookuptable{
+    float **values;
+    float t_max;
+    int denom;
+    int num_entries;
+} lookuptable_t;
+
+extern const state_t ZERO_STATE;
 
 /* Parameters of Vogels Abbott neuron model */
 extern const float state_size;

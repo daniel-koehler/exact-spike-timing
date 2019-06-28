@@ -15,14 +15,14 @@ typedef int bool;
 
 typedef enum {excitatory, inhibitory} synapse_type;
 
-typedef struct synapse_t{
+typedef struct synapse{
     int target;
     synapse_type type;
     float weight;
     float delay;
 } synapse_t;
 
-typedef struct sim_t {
+typedef struct sim {
     /* simulation parameters */
     float h;                // simulation time step
     int   n;                // total number of neurons
@@ -35,6 +35,7 @@ typedef struct sim_t {
     float max_delay;
     bool  rand_delays;
     bool  rand_states;      // initialize state variables randomly
+    bool  calc_factors;     // if true integration factors are calculated for each time interval otherwise a lookup table is used
 
     float t_start;
     float t_end;
@@ -76,6 +77,13 @@ typedef struct sim_t {
     FILE *fd_avgvoltage;
     FILE *fd_stats;
 } sim_t;
+
+void get_factors(float dt, float *factors, bool calc_factors){
+    /*
+    Writes integration factors for time interval dt to factors. If calc_factors is true the calc_factors are calculated
+    exactly otherwise a lookup table passed by lut is used.
+    */
+}
 
 void print_state_mem(sim_t *sim){
     state_t *state_mem = sim->state_mem;

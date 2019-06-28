@@ -3,7 +3,7 @@
 
 #include "va_model.h"
 
-typedef struct state_buf_t{
+typedef struct state_buf{
     state_t **states;
     int slots;
     int slot_size;

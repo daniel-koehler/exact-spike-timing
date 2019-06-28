@@ -1,7 +1,7 @@
 #ifndef spike_h
 #define spike_h
 
-typedef struct spike_t {
+typedef struct spike {
     float   t;
     int     index;
     struct spike_t *next;

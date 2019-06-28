@@ -3,12 +3,14 @@
 #include <stdlib.h>
 #include "va_model.h"
 
-state_t ZERO_STATE = (state_t){
+const state_t ZERO_STATE = (state_t){
     .t_ela  = 0.0,
     .V_m    = 0.0,
     .g_ex   = 0.0,
     .g_in   = 0.0
 };
+
+lookuptable_t lut;
 
 const float E_rest     = 0.0;
 const float E_L        = -60.0;
