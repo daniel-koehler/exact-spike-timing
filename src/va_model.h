@@ -16,14 +16,15 @@ typedef enum interpolation {
     CUBIC
 } interpolation_t;
 
-typedef struct lookuptable{
+typedef struct lut{
     float **values;
     float t_max;
-    int denom;
-    int num_entries;
-} lookuptable_t;
+    int   denom;
+    int   num_entries;
+    int   idx_factor;   // used to calculate table index for given time
+} lut_t;
 
-extern const state_t ZERO_STATE;
+extern state_t ZERO_STATE;
 
 /* Parameters of Vogels Abbott neuron model */
 extern const float state_size;
@@ -51,8 +52,9 @@ extern const int NUM_FACTORS;
 void solve_analytic(state_t *state, float *factors);
 void calc_constants(float *constants);
 void calc_factors(float dt, float *factors, float *constants);
-float **calc_lut(float h, float denom);
-void free_lut(float **lut, float denom);
+void generate_lut(float h, int denom);
+float *lookup(float t);
+void free_lut();
 
 /* Interpolation for exact spike timing */
 float linear_int(float y0, float yh, float yth, float h);

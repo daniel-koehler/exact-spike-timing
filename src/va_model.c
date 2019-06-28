@@ -3,14 +3,12 @@
 #include <stdlib.h>
 #include "va_model.h"
 
-const state_t ZERO_STATE = (state_t){
+state_t ZERO_STATE = (state_t){
     .t_ela  = 0.0,
     .V_m    = 0.0,
     .g_ex   = 0.0,
     .g_in   = 0.0
 };
-
-lookuptable_t lut;
 
 const float E_rest     = 0.0;
 const float E_L        = -60.0;
@@ -31,6 +29,8 @@ const float tau_L      = 1.0 / 20.0;
 const float STATE_SIZE  = 4;
 const int NUM_CONSTANTS = 4;
 const int NUM_FACTORS   = 7;
+
+lut_t lut;
 
 void solve_analytic(state_t *state, float *factors){
     /*
@@ -66,7 +66,7 @@ void calc_factors(float dt, float *factors, float *constants){
     factors[6] = exp(tau_L * dt) * constants[2] * (constants[3] - factors[3]);
 }
 
-float **calc_lut(float h, float denom){
+void generate_lut(float h, int denom){
     /*
     Generates a lookup table for integration factors for the time range [0, h].
     The lookup table has a resolution of 'h / denom' and thus 'denom + 1' entries.
@@ -74,22 +74,36 @@ float **calc_lut(float h, float denom){
     float t;
     int i;
     float resolution = h / denom;
+    lut.t_max = h;
+    lut.denom = denom;
+    lut.idx_factor = denom/h;
     float *constants = (float *) malloc(sizeof(float) * NUM_CONSTANTS);
     calc_constants(constants);
-    float **lut = (float **) malloc(sizeof(float *) * denom);
 
+    lut.values = (float **) malloc(sizeof(float *) * (denom + 1));
     for(t = 0.0, i = 0; i <= denom; t += resolution, i++){
-        lut[i] = (float *) malloc(sizeof(float) * NUM_FACTORS);
-        calc_factors(t, lut[i], constants);        
+        lut.values[i] = (float *) malloc(sizeof(float) * NUM_FACTORS);
+        calc_factors(t, lut.values[i], constants);        
     }
-    return lut;
+    free(constants);
 }
 
-void free_lut(float **lut, float denom){
-    for(int i = 0; i <= denom; i++){
-        free(lut[i]);
+float *lookup(float t){
+    /*
+    Returns integration factors for time t stored in lut. generate_lut() has to be called before once.
+    */
+    if(t > lut.t_max || t < 0.0){
+        return NULL;
     }
-    free(lut);
+    int idx = lut.idx_factor * t;
+    printf("Time: %f Index: %i, Factor: %i\n", t, idx, lut.idx_factor);
+    return lut.values[idx];
+}
+
+void free_lut(){
+    for(int i = 0; i <= lut.denom; i++){
+        free(lut.values[i]);
+    }
 }
 
 float linear_int(float y0, float yh, float yth, float h){
