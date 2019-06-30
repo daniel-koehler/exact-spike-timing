@@ -10,11 +10,13 @@ typedef struct state {
 } state_t;
 
 typedef enum interpolation {
-    NONE,
-    LINEAR,
-    QUADRATIC,
-    CUBIC
+    None,
+    Linear,
+    Quadratic,
+    Cubic
 } interpolation_t;
+
+typedef enum {Calculate, Lookup} factor_sel_t;
 
 typedef struct lut{
     float **values;
@@ -55,6 +57,7 @@ void calc_factors(float dt, float *factors);
 void generate_lut(float h, int denom);
 void lookup(float t, float * factors);
 void free_lut();
+void get_factors(float dt, float *factors, factor_sel_t sel);
 
 /* Interpolation for exact spike timing */
 float linear_int(float y0, float yh, float yth, float h);

@@ -7,89 +7,28 @@
 #include "va_model.h"
 #include "spike.h"
 
+#ifdef CANONICAL
+
+#else // Prescient implementation
+#include "prescient.h"
+#endif
+
+
 clock_t M1, M2;
 float P1;
 
-typedef int bool;
-#define true 1
-#define false 0
-
 #define frand() ((double) rand() / (RAND_MAX + 1.0))
 
-typedef enum {excitatory, inhibitory} synapse_type;
 
-typedef struct synapse{
-    int target;
-    synapse_type type;
-    float weight;
-    float delay;
-} synapse_t;
 
-typedef struct sim {
-    /* simulation parameters */
-    float h;                // simulation time step
-    int   n;                // total number of neurons
-    int   n_ex;
-    int   n_in;
-    int   n_syn;
-    float r_ei;             // ratio of exc. to inh. neurons
-    float p_conn;           // connection probability
-    float min_delay;        // must fulfill h <= min_delay
-    float max_delay;
-    bool  rand_delays;
-    bool  rand_states;      // initialize state variables randomly
-    bool  calc_factors;     // if true integration factors are calculated for each time interval otherwise a lookup table is used
-
-    float t_start;
-    float t_end;
-    float t_input;
-    float t_avg;            // average ISI for external stimulation
-
-    /* Factors and for exponential integration */
-    float *factors_h;
-    float *factors_dt;
-    
-    interpolation_t interpolation;
-
-    /* external stimulus / spikes */
-    spike_t *next_input;
-    spike_t *top_input;
-
-    /* internal spikes (used to plot ISI distribution) */
-    spike_t *next_spike;
-    spike_t *top_spike;
-    int spike_cnt;
-
-    state_t *state_mem;             // stores state variables for each neuron
-    state_t *tmp_mem;               // holds copy of state_mem
-    state_buf_t *state_buf;
-    state_t *buffered_state;
-    state_t *update;
-
-    synapse_t **synapses;           // stores synaptic connections between neurons
-  
-    /* FILE objects used to save simulation results */
-    FILE *fd_raster;
-    FILE *fd_voltage;
-    FILE *fd_conductance;
-    FILE *fd_isi;
-    FILE *fd_firingrate;
-    FILE *fd_avgvoltage;
-    FILE *fd_stats;
-} sim_t;
-
-void get_factors(float dt, float *factors, bool calculate){
-    /*
-    Writes integration factors for time interval dt to factors. If calculate is true the calc_factors are calculated
-    exactly otherwise a lookup table passed by lut is used.
-    */
-    if(calculate){        
-        calc_factors(dt, factors);
-    }
-    else{
-        lookup(dt, factors);
-    }
-}
+/* FILE objects used to save simulation results */
+FILE *fd_raster;
+FILE *fd_voltage;
+FILE *fd_conductance;
+FILE *fd_isi;
+FILE *fd_firingrate;
+FILE *fd_avgvoltage;
+FILE *fd_stats;
 
 void print_state_mem(sim_t *sim){
     state_t *state_mem = sim->state_mem;
@@ -150,7 +89,7 @@ void setup_parameters(sim_t *sim){
     sim->t_avg   = 4.0;
     sim->r_ei    = 4;
     sim->p_conn  = 0.02;
-    sim->interpolation = LINEAR;
+    sim->interpolation = Linear;
     sim->min_delay     = sim->h;
     sim->max_delay     = 10 * sim->h;
     sim->rand_delays   = false;
@@ -225,11 +164,11 @@ void create_network(sim_t *sim){
             /* Synaptic weights */
             if(i < n_ex){
                 weight = dg_ex;
-                synapses[i][j].type = excitatory;              
+                synapses[i][j].type = Excitatory;              
             }
             else{
                 weight = dg_in;
-                synapses[i][j].type = inhibitory;
+                synapses[i][j].type = Inhibitory;
             }
             synapses[i][j].weight = weight;            
         }
@@ -268,14 +207,14 @@ sim_t *setup_sim(void){
     calc_factors(sim->h, sim->factors_h);
     
     /* Open output files */
-    sim->fd_raster      = fopen("results/raster", "w+");
-    sim->fd_voltage     = fopen("results/voltage", "w+");
-    sim->fd_conductance = fopen("results/conductance", "w+");
-    sim->fd_isi         = fopen("results/isi", "w+");
-    sim->fd_firingrate  = fopen("results/firingrate", "w+");
-    sim->fd_avgvoltage  = fopen("results/avgvoltage", "w+");
-    sim->fd_stats       = fopen("results/stats.txt", "w+");
-    if ( (!sim->fd_raster) || (!sim->fd_voltage) || (!sim->fd_isi) || (!sim->fd_stats) || (!sim->fd_conductance) || (!sim->fd_firingrate)){
+    fd_raster      = fopen("results/raster", "w+");
+    fd_voltage     = fopen("results/voltage", "w+");
+    fd_conductance = fopen("results/conductance", "w+");
+    fd_isi         = fopen("results/isi", "w+");
+    fd_firingrate  = fopen("results/firingrate", "w+");
+    fd_avgvoltage  = fopen("results/avgvoltage", "w+");
+    fd_stats       = fopen("results/stats.txt", "w+");
+    if ( !fd_raster || !fd_voltage || !fd_isi || !fd_stats || !fd_conductance || !fd_firingrate || !fd_avgvoltage){
         printf("Could not open files to save results. Exit.\n");
         exit(1);
     }
@@ -304,24 +243,16 @@ void clear_sim(sim_t *sim){
         if (sim->update)            free(sim->update);
         if (sim->top_input)         free_spikes(sim->top_input);
         if (sim->top_spike)         free_spikes(sim->top_spike);
-        if (sim->fd_raster)         fclose(sim->fd_raster);
-        if (sim->fd_voltage)        fclose(sim->fd_voltage);
-        if (sim->fd_conductance)    fclose(sim->fd_conductance);
-        if (sim->fd_isi)            fclose(sim->fd_isi);
-        if (sim->fd_firingrate)     fclose(sim->fd_firingrate);
-        if (sim->fd_avgvoltage)     fclose(sim->fd_avgvoltage);
-        if (sim->fd_stats)          fclose(sim->fd_stats);
+        if (fd_raster)              fclose(fd_raster);
+        if (fd_voltage)             fclose(fd_voltage);
+        if (fd_conductance)         fclose(fd_conductance);
+        if (fd_isi)                 fclose(fd_isi);
+        if (fd_firingrate)          fclose(fd_firingrate);
+        if (fd_avgvoltage)          fclose(fd_avgvoltage);
+        if (fd_stats)               fclose(fd_stats);
     }
     free(sim);
     
-}
-
-void calc_update(state_t *update, float *factors, float g_ex, float g_in){
-    update->V_m  = 0;
-    update->g_ex = g_ex;
-    update->g_in = g_in;
-    solve_analytic(update, factors);
-    update->t_ela = 0;
 }
 
 float calc_avgvoltage(state_t *state_mem, int n, FILE *fd){
@@ -398,9 +329,9 @@ void statistics(sim_t *sim){
     */
     state_t *state_mem = sim->state_mem;
 
-    float mean_isi = calc_isi(sim->top_spike, sim->n, sim->spike_cnt, sim->fd_isi);
-    float mean_firingrate = calc_firingrate(sim->top_spike, sim->n, sim->t_end - sim->t_start, sim->fd_firingrate);
-    float mean_V_m = calc_avgvoltage(state_mem, sim->n, sim->fd_avgvoltage);
+    float mean_isi = calc_isi(sim->top_spike, sim->n, sim->spike_cnt, fd_isi);
+    float mean_firingrate = calc_firingrate(sim->top_spike, sim->n, sim->t_end - sim->t_start, fd_firingrate);
+    float mean_V_m = calc_avgvoltage(state_mem, sim->n, fd_avgvoltage);
     float mean_g_ex = 0.0, mean_g_in = 0.0;
     int spike_cnt  = sim->spike_cnt;
     for (int i = 0; i < sim->n; i++){
@@ -412,138 +343,12 @@ void statistics(sim_t *sim){
     mean_g_ex /= sim->n;
     mean_g_in /= sim->n;
 
-    fprintf(sim->fd_stats, "Number of spikes: %i\n", spike_cnt);
-    fprintf(sim->fd_stats, "Average membrane voltage: %.2f mV\n", mean_V_m);
-    fprintf(sim->fd_stats, "Average exc. conductance: %.2f nS\n", mean_g_ex);
-    fprintf(sim->fd_stats, "Average inh. conductance: %.2f nS\n", mean_g_in);
-    fprintf(sim->fd_stats, "Average interspike interval: %.2f ms\n", mean_isi);
-    fprintf(sim->fd_stats, "Average firing rate : %.2f ms\n", mean_firingrate);
-}
-
-void process_input(sim_t *sim, float t){
-    /*
-    Calculate influence of input spikes and write it to corresponding entry in state_buf.
-    */
-    spike_t *spike = sim->next_input;
-    float t_s;
-    while(spike){
-        if (spike->t > t + sim->min_delay) break;
-        t_s = spike->t - t;
-        get_factors(sim->h - t_s, sim->factors_dt, sim->calc_factors);
-        calc_update(sim->update, sim->factors_dt, dg_stim, 0);
-        buf_add(sim->state_buf, sim->update, spike->index, 0);
-        spike = spike->next;
-    }
-    sim->next_input = spike;
-}
-
-void subthreshold_dynamics(sim_t *sim, int i){
-    /*
-    Calculate subthreshold dynamics for neuron i.
-    */
-    float t_em;
-    float h = sim->h;
-    float   *factors_dt     = sim->factors_dt;
-    state_t *state_mem      = sim->state_mem;
-    state_t *buffered_state = sim->buffered_state;
-
-    /* Standard timing */
-    if (sim->interpolation == NONE){   
-        solve_analytic(&state_mem[i], sim->factors_h);
-        add_state(&state_mem[i], &buffered_state[i]);
-    }
-
-    /* Exact timing */
-    else{ 
-        /* Neuron emerges from refractory period this update interval */  
-        if (state_mem[i].t_ela > tau_ref - h && state_mem[i].t_ela <= tau_ref){
-            t_em = state_mem[i].t_ela + h - tau_ref;
-            get_factors(t_em, factors_dt, sim->calc_factors);
-            solve_analytic(&state_mem[i], factors_dt);            
-            state_mem[i].V_m = 0;
-
-            get_factors(h - t_em, factors_dt, sim->calc_factors);
-            solve_analytic(&state_mem[i], factors_dt);
-            add_state(&state_mem[i], &buffered_state[i]);
-            state_mem[i].V_m -= t_em / h * buffered_state[i].V_m;
-        }    
-        /* Neuron does not emerge from refractory period */
-        else{
-            solve_analytic(&state_mem[i], sim->factors_h);
-            add_state(&state_mem[i], &buffered_state[i]);
-        }
-    }
-}
-
-void process_spike(sim_t *sim, int i, float t){
-    state_t     *state_mem      = sim->state_mem;
-    state_t     *tmp_mem        = sim->tmp_mem;
-    state_t     *update         = sim->update;
-    state_buf_t *state_buf      = sim->state_buf;
-    float       *factors_dt     = sim->factors_dt;
-    synapse_t   **synapses      = sim->synapses;
-    float h = sim->h;
-    float t_s, delay;
-    float y0 = tmp_mem[i].V_m;
-    float yh = state_mem[i].V_m;
-    float y0_dot, yh_dot;
-    int target;
-
-    /* Calculate spike time */
-    switch (sim->interpolation){
-        case NONE:
-            t_s = h;
-            break;
-        
-        case LINEAR:
-            t_s = linear_int(y0, yh, V_th, h);
-            break;
-        
-        case QUADRATIC:
-            y0_dot = voltage_deriv(y0, tmp_mem[i].g_ex, tmp_mem[i].g_in);
-            t_s = quadratic_int(y0, y0_dot, yh, V_th, h);
-            break;
-
-        case CUBIC: // not implemented yet
-            y0_dot = voltage_deriv(y0, tmp_mem[i].g_ex, tmp_mem[i].g_in);
-            yh_dot = voltage_deriv(yh, state_mem[i].g_ex, state_mem[i].g_in);
-            t_s = cubic_int(y0, y0_dot, yh, yh_dot, V_th, h);
-            break;
-    }
-    fprintf(sim->fd_raster, "%f %i\n", t + t_s, i);
-
-    /* Calculate update */
-    // Note: if a single neuron can have both excitatory and inhibitory synapses
-    // the calculation of the update has to be done in the loop below
-    get_factors(h - t_s, factors_dt, sim->calc_factors);    
-    if (synapses[i][0].type == inhibitory){
-        calc_update(update, factors_dt, 0, synapses[i][0].weight);
-    }
-    else{
-        calc_update(update, factors_dt, synapses[i][0].weight, 0);
-    }
-    
-    /* Propagate spike to each target neuron */
-    for(int j = 0; j < sim->n_syn; j++){
-        target = synapses[i][j].target;
-        delay  = synapses[i][j].delay / h;
-        buf_add(state_buf, update, target, delay);
-    }
-
-    state_mem[i].t_ela = 0;
-
-    /* Save spikes in linked list */
-    if (!sim->top_spike){
-        sim->top_spike = sim->next_spike = (spike_t *) malloc(sizeof(spike_t));
-    }
-    else{
-        sim->next_spike->next = (spike_t *) malloc(sizeof(spike_t));
-        sim->next_spike = sim->next_spike->next;
-    }
-    sim->next_spike->next   = NULL;
-    sim->next_spike->index  = i;
-    sim->next_spike->t      = t + t_s;
-    sim->spike_cnt         += 1;
+    fprintf(fd_stats, "Number of spikes: %i\n", spike_cnt);
+    fprintf(fd_stats, "Average membrane voltage: %.2f mV\n", mean_V_m);
+    fprintf(fd_stats, "Average exc. conductance: %.2f nS\n", mean_g_ex);
+    fprintf(fd_stats, "Average inh. conductance: %.2f nS\n", mean_g_in);
+    fprintf(fd_stats, "Average interspike interval: %.2f ms\n", mean_isi);
+    fprintf(fd_stats, "Average firing rate : %.2f ms\n", mean_firingrate);
 }
 
 void simulation_loop(sim_t *sim){
@@ -572,7 +377,7 @@ void simulation_loop(sim_t *sim){
 
             /* Neuron spikes */
             if (state_mem[i].V_m >= V_th){
-                process_spike(sim, i, t);
+                process_spike(sim, i, t, fd_raster);
             }
             
             /* Neuron is in refractory period - clamp to resting potential */
@@ -581,8 +386,8 @@ void simulation_loop(sim_t *sim){
             }
         }
         /* Write state variables to output files */
-        fprintf(sim->fd_voltage, "%f %f\n", t, state_mem[990].V_m);
-        fprintf(sim->fd_conductance, "%f %f %f\n", t, state_mem[990].g_ex, -state_mem[990].g_in);
+        fprintf(fd_voltage, "%f %f\n", t, state_mem[990].V_m);
+        fprintf(fd_conductance, "%f %f %f\n", t, state_mem[990].g_ex, -state_mem[990].g_in);
     }
 }
 
@@ -599,10 +404,9 @@ int main(void){
     statistics(sim);
     clear_sim(sim);
     
-    /*
     // For measurement of execution time
-    M1 = clock();
+    /*M1 = clock();
     M2 = clock();
-    P1 += ((float) (M2 - M1) / CLOCKS_PER_SEC);
-    printf("Performance time: %f s\n", P1);*/
+    P1 = ((float) (M2 - M1) / CLOCKS_PER_SEC);
+    printf("Performance time: %f s\n", P1);*/    
 }

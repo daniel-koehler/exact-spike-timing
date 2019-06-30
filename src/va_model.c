@@ -103,6 +103,18 @@ void free_lut(){
     }
 }
 
+void get_factors(float dt, float *factors, factor_sel_t sel){
+    /*
+    Writes integration 'factors' for time interval dt to factors. 'sel' can be either 'Calculate' or 'Lookup'. 
+    */
+    if(sel == Calculate){        
+        calc_factors(dt, factors);
+    }
+    else{
+        lookup(dt, factors);
+    }
+}
+
 float linear_int(float y0, float yh, float yth, float h){
     /*
     Uses linear interpolation of form y(t) = (yh-y0)/h * t + y0 to determine the intersection of y(t) with yth.
