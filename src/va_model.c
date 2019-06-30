@@ -89,12 +89,12 @@ void lookup(float t, float *factors){
     /*
     Returns integration factors for time t stored in lut. generate_lut() has to be called before once.
     */
+    static int lookup_size = sizeof(float) * NUM_FACTORS;
     if(t > lut.t_max || t < 0.0){
         return;
     }
-    int idx = lut.idx_factor * t;
-    memcpy(factors, lut.values[idx], 28);
-    //memcpy(factors, lut.values[idx], sizeof(float) * NUM_FACTORS);
+    int idx = lut.idx_factor * t + 0.5;
+    memcpy(factors, lut.values[idx], lookup_size);
 }
 
 void free_lut(){
