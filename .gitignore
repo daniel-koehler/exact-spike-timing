@@ -16,6 +16,6 @@
 links
 
 # directories
-/obj
-/results
-/*/.vscode
+obj/
+results/
+.vscode/
