@@ -67,6 +67,14 @@ void calc_factors(float dt, float *factors){
     factors[6] = exp(tau_L * dt) * constants[2] * (constants[3] - factors[3]);
 }
 
+void calc_update(state_t *update, float *factors, float g_ex, float g_in){
+    update->V_m  = 0;
+    update->g_ex = g_ex;
+    update->g_in = g_in;
+    solve_analytic(update, factors);
+    update->t_ela = 0;
+}
+
 void generate_lut(float h, int denom){
     /*
     Generates a lookup table for integration factors for the time range [0, h].

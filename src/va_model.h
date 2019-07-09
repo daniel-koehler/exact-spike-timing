@@ -8,6 +8,7 @@ typedef struct state {
     float g_ex;
     float g_in;
 } state_t;
+extern state_t ZERO_STATE;
 
 typedef enum interpolation {
     None,
@@ -26,7 +27,14 @@ typedef struct lut{
     int   idx_factor;   // used to calculate table index for given time
 } lut_t;
 
-extern state_t ZERO_STATE;
+typedef enum {Excitatory, Inhibitory} synapse_type;
+
+typedef struct synapse{
+    int target;
+    synapse_type type;
+    float weight;
+    float delay;
+} synapse_t;
 
 /* Parameters of Vogels Abbott neuron model */
 extern const float state_size;
@@ -54,6 +62,8 @@ extern const int NUM_FACTORS;
 void solve_analytic(state_t *state, float *factors);
 void calc_constants(float *constants);
 void calc_factors(float dt, float *factors);
+void calc_update(state_t *update, float *factors, float g_ex, float g_in);
+
 void generate_lut(float h, int denom);
 void lookup(float t, float * factors);
 void free_lut();

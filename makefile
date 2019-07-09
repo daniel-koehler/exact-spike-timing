@@ -3,21 +3,23 @@ CFLAGS = -Wall -g
 # Libraries: math.h
 LDFLAGS = -lm
 
-# Canonical or prescient implementation?
-# Use 'make c=1 <rule>' for canonical implementation.
-ifdef c
-SIMDIR = canonical
-else
-SIMDIR = prescient
-endif
-
-OBJDIR = $(SIMDIR)/obj
-SRCDIR = $(SIMDIR)/src
+OBJDIR = obj
+SRCDIR = src
 RESDIR = results
 PLOTDIR = plots
 
 TARGET = sim
 SRCS = $(wildcard $(SRCDIR)/*.c)
+TMP := $(SRCS)
+# Canonical or prescient implementation?
+# Use 'make c=1 <rule>' for canonical implementation.
+ifdef c
+	CFLAGS += -DCANONICAL
+	SRCS := $(filter-out $(SRCDIR)/prescient.c,$(SRCS))
+else
+	SRCS := $(filter-out $(SRCDIR)/canonical.c,$(SRCS))
+endif
+
 OBJS = $(patsubst $(SRCDIR)/%.c,$(OBJDIR)/%.o,$(SRCS))
 PLOTS_ = $(wildcard $(PLOTDIR)/*)
 PLOTS = $(patsubst $(PLOTDIR)/%,%,$(PLOTS_))

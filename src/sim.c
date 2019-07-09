@@ -7,67 +7,16 @@
 #include "va_model.h"
 #include "spike.h"
 
+#ifdef CANONICAL
+#include "canonical.h"
+#else
+#include "prescient.h"
+#endif
+
 clock_t M1, M2;
 float P1;
 
-#define frand() ((double) rand() / (RAND_MAX + 1.0))
 
-typedef int bool;
-#define true 1
-#define false 0
-
-typedef enum {Excitatory, Inhibitory} synapse_type;
-
-typedef struct synapse{
-    int target;
-    synapse_type type;
-    float weight;
-    float delay;
-} synapse_t;
-
-typedef struct sim {
-    /* simulation parameters */
-    float h;                // simulation time step
-    int   n;                // total number of neurons
-    int   n_ex;
-    int   n_in;
-    int   n_syn;
-    float r_ei;             // ratio of exc. to inh. neurons
-    float p_conn;           // connection probability
-    float min_delay;        // must fulfill h <= min_delay
-    float max_delay;
-    bool  rand_delays;
-    bool  rand_states;      // initialize state variables randomly
-    factor_sel_t  calc_factors;     // 'Lookup': use lookup table, 'Calculate': exact factors calculated for each time interval
-
-    float t_start;
-    float t_end;
-    float t_input;
-    float t_avg;            // average ISI for external stimulation
-
-    /* Factors and for exponential integration */
-    float *factors_h;
-    float *factors_dt;
-    
-    interpolation_t interpolation;
-
-    /* external stimulus / spikes */
-    spike_t *next_input;
-    spike_t *top_input;
-
-    /* internal spikes (used to plot ISI distribution) */
-    spike_t *next_spike;
-    spike_t *top_spike;
-    int spike_cnt;
-    state_buf_t *state_buf;
-    state_t *state_mem;             // stores state variables for each neuron
-    state_t *tmp_mem;               // holds copy of state_mem
-    
-    state_t *buffered_state;
-    state_t *update;
-
-    synapse_t **synapses;           // stores synaptic connections between neurons
-} sim_t;
 
 /* FILE objects used to save simulation results */
 FILE *fd_raster;
@@ -81,44 +30,6 @@ void print_state_mem(sim_t *sim){
         printf("Index %i: t_ela = %.2f, V_m = %.2f, g_ex = %.2f, g_in = %.2f\n", i, state_mem[i].t_ela,\
         state_mem[i].V_m, state_mem[i].g_ex, state_mem[i].g_in);
     }
-}
-
-void create_events(sim_t *sim){
-    /*
-    Creates a poisson distributed input spike train for each neuron.
-    */
-    int n = sim->n;
-    int i;
-    float dt;
-    int     spike_cnt    = 0;
-    spike_t *new_input   = NULL;
-    spike_t *top_input   = NULL;
-    spike_t *next_input  = NULL;
-
-    for(i = 0; i < n; i++){
-        for(float t = sim->t_start; t <= sim->t_input; ){
-            /* Add up exponentially distributed intervals to generate Poisson spike train */
-            dt  = -log(1.0 - frand()) * sim->t_avg;
-            t  += dt;
-            if (t > sim->t_input) break;
-
-            /* Create a new input spike */
-            new_input        = (spike_t *) malloc(sizeof(spike_t));
-            new_input->t     = t;
-            new_input->index = i;
-            new_input->next  = NULL;
-
-            if (top_input == NULL){
-                sim->top_input = sim->next_input = top_input = new_input;
-            }
-            else{
-                next_input->next = new_input;
-            }
-            next_input = new_input;
-            spike_cnt++;
-        }
-    }
-    sim->top_input  = sort_spikes(top_input, spike_cnt);
 }
 
 void setup_parameters(sim_t *sim){
@@ -139,6 +50,10 @@ void setup_parameters(sim_t *sim){
     sim->rand_delays   = false;
     sim->rand_states   = true;
     sim->calc_factors  = false;
+
+    sim->n_ex      = floor(sim->n * sim->r_ei / (sim->r_ei + 1));
+    sim->n_in      = sim->n - sim->n_ex;
+    sim->n_syn     = (sim->n - 1) * sim->p_conn;
 }
 
 void initialize_state_mem(sim_t *sim){
@@ -149,15 +64,9 @@ void initialize_state_mem(sim_t *sim){
     state_t *state_mem;
 	float h          = sim->h;
 	int   n          = sim->n;
-	float max_delay  = sim->max_delay;
-	float min_delay  = sim->min_delay;
-	int   slots      = (max_delay-min_delay)/h + 1;
-	int   slot_size  = n;
 
     sim->state_mem = state_mem = (state_t *) malloc(sizeof(state_t)*n);
-    sim->state_buf = create_buffer(slots, slot_size);
     sim->tmp_mem        = (state_t *) malloc(sizeof(state_t) * n);
-    sim->buffered_state = (state_t *) malloc(sizeof(state_t) * n);
     sim->update         = (state_t *) malloc(sizeof(state_t));
 
     for(i = 0; i < n; i++){
@@ -220,7 +129,7 @@ void create_network(sim_t *sim){
     sim->synapses = synapses;
 }
 
-sim_t *setup_sim(void){
+sim_t *setup(void){
     /*
     Set simulation parameters, initalize memory, generate stimulus
     */
@@ -228,23 +137,16 @@ sim_t *setup_sim(void){
     sim_t *sim = (sim_t *) malloc(sizeof(sim_t));
 
     setup_parameters(sim);
-
-    sim->n_ex      = floor(sim->n * sim->r_ei / (sim->r_ei + 1));
-    sim->n_in      = sim->n - sim->n_ex;
-    sim->n_syn     = (sim->n - 1) * sim->p_conn;
-    
-    sim->top_spike   = NULL;
-    sim->next_spike  = NULL;
-    sim->spike_cnt   = 0;
-
+    setup_sim(sim);
     create_events(sim);
 
     create_network(sim);
 
     initialize_state_mem(sim);
 
-    generate_lut(sim->h, 100);      // generates lookup table with 100+1 entries for time interval [0 h]
-
+    if(sim->calc_factors == Lookup){
+        generate_lut(sim->h, 100);      // generates lookup table with 100+1 entries for time interval [0 h]
+    }
     sim->factors_h  = (float *) malloc(sizeof(float) * NUM_FACTORS);
     sim->factors_dt = (float *) malloc(sizeof(float) * NUM_FACTORS);
 
@@ -262,11 +164,12 @@ sim_t *setup_sim(void){
 
 }
 
-void clear_sim(sim_t *sim){
+void clean_up(sim_t *sim){
     /*
     Free allocated memory
     */
-    if (sim){      
+    if (sim){
+        clear_sim(sim);     
         if (sim->synapses){
             for(int i = 0; i < sim->n; i++){
                 free(sim->synapses[i]);
@@ -277,12 +180,9 @@ void clear_sim(sim_t *sim){
         if (sim->factors_h)         free(sim->factors_h);
         if (sim->factors_dt)        free(sim->factors_dt);
         //free_lut();
-        free_buffer(sim->state_buf);
-        if (sim->tmp_mem)           free(sim->tmp_mem);
-        if (sim->buffered_state)    free(sim->buffered_state);
+        
+        if (sim->tmp_mem)           free(sim->tmp_mem);   
         if (sim->update)            free(sim->update);
-        if (sim->top_input)         free_spikes(sim->top_input);
-        if (sim->top_spike)         free_spikes(sim->top_spike);
         if (fd_raster)              fclose(fd_raster);
         if (fd_voltage)             fclose(fd_voltage);
         if (fd_conductance)         fclose(fd_conductance);
@@ -393,140 +293,6 @@ void statistics(sim_t *sim){
     fprintf(fd, "Average firing rate : %.2f ms\n", mean_firingrate);
 }
 
-void calc_update(state_t *update, float *factors, float g_ex, float g_in){
-    update->V_m  = 0;
-    update->g_ex = g_ex;
-    update->g_in = g_in;
-    solve_analytic(update, factors);
-    update->t_ela = 0;
-}
-
-void process_input(sim_t *sim, float t){
-    /*
-    Calculate influence of input spikes and write it to corresponding entry in state_buf.
-    */
-    spike_t *spike = sim->next_input;
-    float t_s;
-    while(spike){
-        if (spike->t > t + sim->min_delay) break;
-        t_s = spike->t - t;
-        get_factors(sim->h - t_s, sim->factors_dt, sim->calc_factors);
-        calc_update(sim->update, sim->factors_dt, dg_stim, 0);
-        buf_add(sim->state_buf, sim->update, spike->index, 0);
-        spike = spike->next;
-    }
-    sim->next_input = spike;
-}
-
-void subthreshold_dynamics(sim_t *sim, int i){
-    /*
-    Calculate subthreshold dynamics for neuron i.
-    */
-    float t_em;
-    float h = sim->h;
-    float   *factors_dt     = sim->factors_dt;
-    state_t *state_mem      = sim->state_mem;
-    state_t *buffered_state = sim->buffered_state;
-
-    /* Standard timing */
-    if (sim->interpolation == None){   
-        solve_analytic(&state_mem[i], sim->factors_h);
-        add_state(&state_mem[i], &buffered_state[i]);
-    }
-
-    /* Exact timing */
-    else{ 
-        /* Neuron emerges from refractory period this update interval */  
-        if (state_mem[i].t_ela > tau_ref - h && state_mem[i].t_ela <= tau_ref){
-            t_em = state_mem[i].t_ela + h - tau_ref;
-            get_factors(t_em, factors_dt, sim->calc_factors);
-            solve_analytic(&state_mem[i], factors_dt);            
-            state_mem[i].V_m = 0;
-
-            get_factors(h - t_em, factors_dt, sim->calc_factors);
-            solve_analytic(&state_mem[i], factors_dt);
-            add_state(&state_mem[i], &buffered_state[i]);
-            state_mem[i].V_m -= t_em / h * buffered_state[i].V_m;
-        }    
-        /* Neuron does not emerge from refractory period */
-        else{
-            solve_analytic(&state_mem[i], sim->factors_h);
-            add_state(&state_mem[i], &buffered_state[i]);
-        }
-    }
-}
-
-void generate_spike(sim_t *sim, int i, float t){
-    state_t     *state_mem      = sim->state_mem;
-    state_t     *tmp_mem        = sim->tmp_mem;
-    state_t     *update         = sim->update;
-    state_buf_t *state_buf      = sim->state_buf;
-    float       *factors_dt     = sim->factors_dt;
-    synapse_t   **synapses      = sim->synapses;
-    float h = sim->h;
-    float t_s, delay;
-    float y0 = tmp_mem[i].V_m;
-    float yh = state_mem[i].V_m;
-    float y0_dot, yh_dot;
-    int target;
-
-    /* Calculate spike time */
-    switch (sim->interpolation){
-        case None:
-            t_s = h;
-            break;
-        
-        case Linear:
-            t_s = linear_int(y0, yh, V_th, h);
-            break;
-        
-        case Quadratic:
-            y0_dot = voltage_deriv(y0, tmp_mem[i].g_ex, tmp_mem[i].g_in);
-            t_s = quadratic_int(y0, y0_dot, yh, V_th, h);
-            break;
-
-        case Cubic: // not implemented yet
-            y0_dot = voltage_deriv(y0, tmp_mem[i].g_ex, tmp_mem[i].g_in);
-            yh_dot = voltage_deriv(yh, state_mem[i].g_ex, state_mem[i].g_in);
-            t_s = cubic_int(y0, y0_dot, yh, yh_dot, V_th, h);
-            break;
-    }
-    fprintf(fd_raster, "%f %i\n", t + t_s, i);
-
-    /* Calculate update */
-    // Note: if a single neuron can have both excitatory and inhibitory synapses
-    // the calculation of the update has to be done in the loop below
-    get_factors(h - t_s, factors_dt, sim->calc_factors);    
-    if (synapses[i][0].type == Inhibitory){
-        calc_update(update, factors_dt, 0, synapses[i][0].weight);
-    }
-    else{
-        calc_update(update, factors_dt, synapses[i][0].weight, 0);
-    }
-    
-    /* Propagate spike to each target neuron */
-    for(int j = 0; j < sim->n_syn; j++){
-        target = synapses[i][j].target;
-        delay  = synapses[i][j].delay / h;
-        buf_add(state_buf, update, target, delay);
-    }
-
-    state_mem[i].t_ela = 0;
-
-    /* Save spikes in linked list */
-    if (!sim->top_spike){
-        sim->top_spike = sim->next_spike = (spike_t *) malloc(sizeof(spike_t));
-    }
-    else{
-        sim->next_spike->next = (spike_t *) malloc(sizeof(spike_t));
-        sim->next_spike = sim->next_spike->next;
-    }
-    sim->next_spike->next   = NULL;
-    sim->next_spike->index  = i;
-    sim->next_spike->t      = t + t_s;
-    sim->spike_cnt         += 1;
-}
-
 void simulation_loop(sim_t *sim){
     /*
     Main loop of the time based simulation
@@ -545,15 +311,14 @@ void simulation_loop(sim_t *sim){
         }
         /* Update interval (t, t+h] */   
         process_input(sim, t);
-          
-        buf_read_all(sim->state_buf, sim->buffered_state);
+
         memcpy(sim->tmp_mem, state_mem, sizeof(state_t) * sim->n);    // copy of state variables at time t
         for(int i = 0; i < n; i++){
             subthreshold_dynamics(sim, i);
 
             /* Neuron spikes */
             if (state_mem[i].V_m >= V_th){
-                generate_spike(sim, i, t);
+                generate_spike(sim, i, t, fd_raster);
             }
             
             /* Neuron is in refractory period - clamp to resting potential */
@@ -568,7 +333,7 @@ void simulation_loop(sim_t *sim){
 }
 
 int main(void){
-    sim_t *sim = setup_sim();
+    sim_t *sim = setup();
     clock_t start, end;
     float simulation_time;
     start = clock();
@@ -578,7 +343,7 @@ int main(void){
     simulation_time = ((float) (end - start) / CLOCKS_PER_SEC);
     printf("Simulation time: %f s\n", simulation_time);
     statistics(sim);
-    clear_sim(sim);
+    clean_up(sim);
     
     // For measurement of execution time
     /*M1 = clock();
