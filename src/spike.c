@@ -2,6 +2,14 @@
 #include <stdio.h>
 #include "spike.h"
 
+spike_t *new_spike(int index, float t, float weight){
+    spike_t *spike = (spike_t *) malloc(sizeof(spike_t));
+    spike->index  = index;
+    spike->t      = t;
+    spike->weight = weight;
+    spike->next   = NULL;
+    return spike;
+}
 
 int compare_spikes(const void *p1, const void *p2){
     /*
@@ -54,16 +62,42 @@ void print_spikes(spike_t *head){
     }
 }
 
-spike_t *append_spike(spike_t *spike, float t, int idx){
+void append_spike(spike_t **head, spike_t *spike){
     /*
-    Appends a spike to node 'spike' and returns pointer to it.
+    Appends 'spike' to a linked list, whose start is given by 'head'.
     */
-    spike->next  = (spike_t *) malloc(sizeof(spike_t));
-    spike        = spike->next;
-    spike->next  = NULL;
-    spike->index = idx;
-    spike->t     = t;
-    return spike;
+    if(!head){  // Special case: empty list
+        *head = spike;
+        return;
+    }
+    spike_t *curr = *head;
+    while(curr){
+        if (curr->next){
+            curr = curr->next;
+        }
+        else{
+            curr->next = spike;
+            break;
+        }
+    }
+
+}
+
+void sortin_spike(spike_t **head, spike_t *spike){
+    /*
+    Sorts 'spike' w.r.t its time t into a linked list, whose start is given by 'head'.
+    */
+    if(!(*head) || (*head)->t >= spike->t){
+        spike->next = *head;
+        *head = spike;
+        return;
+    }
+    spike_t *curr = *head;
+    while(curr->next && curr->t < spike->t){
+        curr = curr->next;
+    }
+    spike->next = curr->next;
+    curr->next = spike;
 }
 
 void free_spikes(spike_t *top_input){
