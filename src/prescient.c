@@ -1,25 +1,39 @@
 #include <stdlib.h>
 #include <math.h>
+#include <string.h>
 #include "prescient.h"
+
+/* FILE objects used to save simulation results */
+FILE *fd_raster;
+FILE *fd_voltage;
+FILE *fd_conductance;
 
 void setup_sim(sim_t *sim){
     /*
     Implementation-specific setup of simulation structure.
     */
     int   slots      = (sim->max_delay - sim->min_delay)/sim->h + 1;
-    sim->top_spike   = NULL;
-    sim->next_spike  = NULL;
-    sim->spike_cnt   = 0;
-
     sim->state_buf = create_buffer(slots, sim->n);
     sim->buffered_state = (state_t *) malloc(sizeof(state_t) * sim->n);
+
+    /* Open output files */
+    fd_raster      = fopen("results/raster", "w+");
+    fd_voltage     = fopen("results/voltage", "w+");
+    fd_conductance = fopen("results/conductance", "w+");
+    if ( !fd_raster || !fd_voltage || !fd_conductance){
+        printf("Could not open files to save results. Exit.\n");
+        exit(1);
+    }
 }
 
 void clear_sim(sim_t *sim){
     free_buffer(sim->state_buf);
     if (sim->buffered_state)    free(sim->buffered_state);
     if (sim->top_input)         free_spikes(sim->top_input);
-    if (sim->top_spike)         free_spikes(sim->top_spike);
+
+    if (fd_raster)              fclose(fd_raster);
+    if (fd_voltage)             fclose(fd_voltage);
+    if (fd_conductance)         fclose(fd_conductance);    
 }
 
 void create_events(sim_t *sim){
@@ -29,10 +43,14 @@ void create_events(sim_t *sim){
     int n = sim->n;
     int i;
     float dt;
-    int     spike_cnt    = 0;
-    spike_t *new_input   = NULL;
-    spike_t *top_input   = NULL;
-    spike_t *next_input  = NULL;
+    int     spike_cnt;
+    spike_t *top_input;
+    spike_t *next_input;
+    spike_t *new_input = NULL;
+
+    sim->top_spike  = top_input  = NULL;
+    sim->next_spike = next_input = NULL;
+    sim->spike_cnt  = spike_cnt  = 0;
 
     for(i = 0; i < n; i++){
         for(float t = sim->t_start; t <= sim->t_input; ){
@@ -60,7 +78,7 @@ void create_events(sim_t *sim){
     sim->top_input  = sort_spikes(top_input, spike_cnt);
 }
 
-void process_input(sim_t *sim, float t){
+void process_spikes(sim_t *sim, float t){
     /*
     Calculate influence of input spikes and write it to corresponding entry in state_buf.
     */
@@ -75,8 +93,6 @@ void process_input(sim_t *sim, float t){
         spike = spike->next;
     }
     sim->next_input = spike;
-
-    buf_read_all(sim->state_buf, sim->buffered_state);
 }
 
 void subthreshold_dynamics(sim_t *sim, int i){
@@ -117,7 +133,7 @@ void subthreshold_dynamics(sim_t *sim, int i){
     }
 }
 
-void generate_spike(sim_t *sim, int i, float t, FILE *fd_raster){
+void generate_spike(sim_t *sim, int i, float t){
     state_t     *state_mem      = sim->state_mem;
     state_t     *tmp_mem        = sim->tmp_mem;
     state_t     *update         = sim->update;
@@ -186,4 +202,43 @@ void generate_spike(sim_t *sim, int i, float t, FILE *fd_raster){
     sim->next_spike->index  = i;
     sim->next_spike->t      = t + t_s;
     sim->spike_cnt         += 1;
+}
+
+void simulation_loop(sim_t *sim){
+    /*
+    Main loop of the time based simulation
+    */
+    float t_start = sim->t_start;
+    float t_end   = sim->t_end;
+    float t;
+    float t_output = 0.1 * (t_end - t_start);
+    float h = sim->h;
+    int   n = sim->n;
+    state_t *state_mem = sim->state_mem;
+    for(t=t_start; t <= t_end; t+=h){
+        if (t >= t_output){
+            printf("t = %.0f ms\n", t);
+            t_output += 0.1 * (t_end - t_start);
+        }
+        /* Update interval (t, t+h] */   
+        process_spikes(sim, t);
+        buf_read_all(sim->state_buf, sim->buffered_state);
+        memcpy(sim->tmp_mem, state_mem, sizeof(state_t) * sim->n);    // copy of state variables at time t
+        for(int i = 0; i < n; i++){
+            subthreshold_dynamics(sim, i);
+
+            /* Neuron spikes */
+            if (state_mem[i].V_m >= V_th){
+                generate_spike(sim, i, t);
+            }
+            
+            /* Neuron is in refractory period - clamp to resting potential */
+            if (state_mem[i].t_ela < tau_ref){
+                state_mem[i].V_m = E_rest;
+            }
+        }
+        /* Write state variables to output files */
+        fprintf(fd_voltage, "%f %f\n", t, state_mem[0].V_m);
+        fprintf(fd_conductance, "%f %f %f\n", t, state_mem[0].g_ex, -state_mem[0].g_in);
+    }
 }

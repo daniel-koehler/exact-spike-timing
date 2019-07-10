@@ -59,8 +59,9 @@ typedef struct sim {
 void setup_sim(sim_t *sim);
 void clear_sim(sim_t *sim);
 void create_events(sim_t *sim);
-void process_input(sim_t *sim, float t);
+void process_spikes(sim_t *sim, float t);
 void subthreshold_dynamics(sim_t *sim, int i);
-void generate_spike(sim_t *sim, int i, float t, FILE *fd_raster);
+void generate_spike(sim_t *sim, int i, float t);
+void simulation_loop(sim_t *sim);
 
 #endif
