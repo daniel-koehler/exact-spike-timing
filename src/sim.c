@@ -1,7 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
-#include <string.h>
 #include <time.h>
 #include "statebuf.h"
 #include "va_model.h"
@@ -15,13 +14,6 @@
 
 clock_t M1, M2;
 float P1;
-
-
-
-/* FILE objects used to save simulation results */
-FILE *fd_raster;
-FILE *fd_voltage;
-FILE *fd_conductance;
 
 void print_state_mem(sim_t *sim){
     state_t *state_mem = sim->state_mem;
@@ -49,7 +41,7 @@ void setup_parameters(sim_t *sim){
     sim->max_delay     = 10 * sim->h;
     sim->rand_delays   = false;
     sim->rand_states   = true;
-    sim->calc_factors  = false;
+    sim->calc_factors  = true;
 
     sim->n_ex      = floor(sim->n * sim->r_ei / (sim->r_ei + 1));
     sim->n_in      = sim->n - sim->n_ex;
@@ -152,14 +144,6 @@ sim_t *setup(void){
 
     calc_factors(sim->h, sim->factors_h);
     
-    /* Open output files */
-    fd_raster      = fopen("results/raster", "w+");
-    fd_voltage     = fopen("results/voltage", "w+");
-    fd_conductance = fopen("results/conductance", "w+");
-    if ( !fd_raster || !fd_voltage || !fd_conductance){
-        printf("Could not open files to save results. Exit.\n");
-        exit(1);
-    }
     return(sim);
 
 }
@@ -180,12 +164,9 @@ void clean_up(sim_t *sim){
         if (sim->factors_h)         free(sim->factors_h);
         if (sim->factors_dt)        free(sim->factors_dt);
         //free_lut();
-        
+        if (sim->top_spike)         free_spikes(sim->top_spike);
         if (sim->tmp_mem)           free(sim->tmp_mem);   
         if (sim->update)            free(sim->update);
-        if (fd_raster)              fclose(fd_raster);
-        if (fd_voltage)             fclose(fd_voltage);
-        if (fd_conductance)         fclose(fd_conductance);
     }
     free(sim);
     
@@ -293,44 +274,7 @@ void statistics(sim_t *sim){
     fprintf(fd, "Average firing rate : %.2f ms\n", mean_firingrate);
 }
 
-void simulation_loop(sim_t *sim){
-    /*
-    Main loop of the time based simulation
-    */
-    float t_start = sim->t_start;
-    float t_end   = sim->t_end;
-    float t;
-    float t_output = 0.1 * (t_end - t_start);
-    float h = sim->h;
-    int   n = sim->n;
-    state_t     *state_mem = sim->state_mem;
-    for(t=t_start; t <= t_end; t+=h){
-        if (t >= t_output){
-            printf("t = %.0f ms\n", t);
-            t_output += 0.1 * (t_end - t_start);
-        }
-        /* Update interval (t, t+h] */   
-        process_input(sim, t);
 
-        memcpy(sim->tmp_mem, state_mem, sizeof(state_t) * sim->n);    // copy of state variables at time t
-        for(int i = 0; i < n; i++){
-            subthreshold_dynamics(sim, i);
-
-            /* Neuron spikes */
-            if (state_mem[i].V_m >= V_th){
-                generate_spike(sim, i, t, fd_raster);
-            }
-            
-            /* Neuron is in refractory period - clamp to resting potential */
-            if (state_mem[i].t_ela < tau_ref){
-                state_mem[i].V_m = E_rest;
-            }
-        }
-        /* Write state variables to output files */
-        fprintf(fd_voltage, "%f %f\n", t, state_mem[990].V_m);
-        fprintf(fd_conductance, "%f %f %f\n", t, state_mem[990].g_ex, -state_mem[990].g_in);
-    }
-}
 
 int main(void){
     sim_t *sim = setup();
