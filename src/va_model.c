@@ -124,16 +124,16 @@ void get_factors(float dt, float *factors, factor_sel_t sel){
     }
 }
 
-float linear_int(float y0, float yh, float yth, float h){
+float linear_int(float y0, float yh, float yth, float dt){
     /*
-    Uses linear interpolation of form y(t) = (yh-y0)/h * t + y0 to determine the intersection of y(t) with yth.
+    Uses linear interpolation of form y(t) = (yh-y0)/dt * t + y0 to determine the intersection of y(t) with yth.
     */
-   return h*(y0 - yth) / (y0 - yh);
+   return dt*(y0 - yth) / (y0 - yh);
 }
 
-float quadratic_int(float y0, float y0_dot, float yh, float yth, float h){
-    float denom = (yh - y0 - h * y0_dot);
-    float p = pow(h,2) * y0_dot / denom;
+float quadratic_int(float y0, float y0_dot, float yh, float yth, float dt){
+    float denom = (yh - y0 - dt * y0_dot);
+    float p = pow(dt,2) * y0_dot / denom;
     float q = (y0 - yth) / denom;
     float disc = pow((p/2),2) - q;
     if (disc < 0){
@@ -145,7 +145,7 @@ float quadratic_int(float y0, float y0_dot, float yh, float yth, float h){
     }
     return res;
 }
-float cubic_int(float y0, float y0_dot, float yh, float yh_dot, float yth, float h){
+float cubic_int(float y0, float y0_dot, float yh, float yh_dot, float yth, float dt){
     return 1.0;
 }
 
