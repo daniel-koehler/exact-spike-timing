@@ -36,12 +36,12 @@ void setup_parameters(sim_t *sim){
     sim->t_avg   = 4.0;
     sim->r_ei    = 4;
     sim->p_conn  = 0.02;
-    sim->interpolation = None;
+    sim->interpolation = Linear;
     sim->min_delay     = sim->h;
     sim->max_delay     = 10 * sim->h;
     sim->rand_delays   = false;
     sim->rand_states   = true;
-    sim->calc_factors  = Calculate;
+    sim->calc_factors  = Lookup;
 
     sim->n_ex      = floor(sim->n * sim->r_ei / (sim->r_ei + 1));
     sim->n_in      = sim->n - sim->n_ex;
@@ -162,7 +162,7 @@ void clean_up(sim_t *sim){
         if (sim->state_mem)         free(sim->state_mem);
         if (sim->factors_h)         free(sim->factors_h);
         if (sim->factors_dt)        free(sim->factors_dt);
-        //free_lut();
+        free_lut();
         if (sim->top_spike)         free_spikes(sim->top_spike);   
         
     }

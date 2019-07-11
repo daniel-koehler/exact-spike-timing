@@ -104,6 +104,7 @@ void free_lut(){
     for(int i = 0; i <= lut.denom; i++){
         free(lut.values[i]);
     }
+    free(lut.values);
 }
 
 void get_factors(float dt, float *factors, factor_sel_t sel){
