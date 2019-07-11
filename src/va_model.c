@@ -4,12 +4,7 @@
 #include <string.h>
 #include "va_model.h"
 
-state_t ZERO_STATE = (state_t){
-    .t_ela  = 0.0,
-    .V_m    = 0.0,
-    .g_ex   = 0.0,
-    .g_in   = 0.0
-};
+
 
 const float E_rest     = 0.0;
 const float E_L        = -60.0;
@@ -30,6 +25,13 @@ const float tau_L      = 1.0 / 20.0;
 const float STATE_SIZE  = 4;
 const int NUM_CONSTANTS = 4;
 const int NUM_FACTORS   = 7;
+
+state_t ZERO_STATE = (state_t){
+    .t_ela  = 0.0,
+    .V_m    = 0.0,
+    .g_ex   = 0.0,
+    .g_in   = 0.0
+};
 
 lut_t lut;
 
@@ -65,14 +67,6 @@ void calc_factors(float dt, float *factors){
     factors[4] = (factors[3] - factors[1]) * constants[0];
     factors[5] = (factors[3] - factors[2]) * constants[1];
     factors[6] = exp(tau_L * dt) * constants[2] * (constants[3] - factors[3]);
-}
-
-void calc_update(state_t *update, float *factors, float g_ex, float g_in){
-    update->V_m  = 0;
-    update->g_ex = g_ex;
-    update->g_in = g_in;
-    solve_analytic(update, factors);
-    update->t_ela = 0;
 }
 
 void generate_lut(float h, int denom){
@@ -165,7 +159,7 @@ void add_state(state_t *s1, state_t *s2){
 
 void sub_state(state_t *s1, state_t *s2){
     /*
-    Adds all state variables: *s1 = *s1 - *s2
+    Subtracts all state variables: *s1 = *s1 - *s2
     */
     s1->t_ela = s1->t_ela - s2->t_ela;
     s1->V_m   = s1->V_m   - s2->V_m;

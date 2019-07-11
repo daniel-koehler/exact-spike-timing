@@ -48,7 +48,7 @@ spike_t *sort_spikes(spike_t *head, int spike_cnt){
 }
 
 void print_spike(spike_t *spike){
-    printf("Neuron %i at %f ms\n", spike->index, spike->t);
+    printf("Neuron %i at %f ms with weight %f.\n", spike->index, spike->t, spike->weight);
 }
 
 void print_spikes(spike_t *head){
@@ -93,7 +93,7 @@ void sortin_spike(spike_t **head, spike_t *spike){
         return;
     }
     spike_t *curr = *head;
-    while(curr->next && curr->t < spike->t){
+    while(curr->next && curr->next->t < spike->t){
         curr = curr->next;
     }
     spike->next = curr->next;

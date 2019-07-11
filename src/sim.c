@@ -29,19 +29,19 @@ void setup_parameters(sim_t *sim){
     Setup all important parameters of the simulation.
     */
     sim->n       = 4000;
-    sim->h       = 0.1;
+    sim->h       = 0.05;
     sim->t_start = 0.0;
     sim->t_end   = 1000.0;
     sim->t_input = 50.0;
     sim->t_avg   = 4.0;
     sim->r_ei    = 4;
     sim->p_conn  = 0.02;
-    sim->interpolation = Linear;
+    sim->interpolation = None;
     sim->min_delay     = sim->h;
     sim->max_delay     = 10 * sim->h;
     sim->rand_delays   = false;
     sim->rand_states   = true;
-    sim->calc_factors  = true;
+    sim->calc_factors  = Calculate;
 
     sim->n_ex      = floor(sim->n * sim->r_ei / (sim->r_ei + 1));
     sim->n_in      = sim->n - sim->n_ex;
@@ -58,8 +58,6 @@ void initialize_state_mem(sim_t *sim){
 	int   n          = sim->n;
 
     sim->state_mem = state_mem = (state_t *) malloc(sizeof(state_t)*n);
-    sim->tmp_mem        = (state_t *) malloc(sizeof(state_t) * n);
-    sim->update         = (state_t *) malloc(sizeof(state_t));
 
     for(i = 0; i < n; i++){
         if (sim->rand_states){
@@ -141,7 +139,8 @@ sim_t *setup(void){
     }
     sim->factors_h  = (float *) malloc(sizeof(float) * NUM_FACTORS);
     sim->factors_dt = (float *) malloc(sizeof(float) * NUM_FACTORS);
-
+    sim->spike_cnt  = 0;
+    sim->top_spike  = NULL;
     calc_factors(sim->h, sim->factors_h);
     
     return(sim);
@@ -164,9 +163,8 @@ void clean_up(sim_t *sim){
         if (sim->factors_h)         free(sim->factors_h);
         if (sim->factors_dt)        free(sim->factors_dt);
         //free_lut();
-        if (sim->top_spike)         free_spikes(sim->top_spike);
-        if (sim->tmp_mem)           free(sim->tmp_mem);   
-        if (sim->update)            free(sim->update);
+        if (sim->top_spike)         free_spikes(sim->top_spike);   
+        
     }
     free(sim);
     
@@ -272,6 +270,8 @@ void statistics(sim_t *sim){
     fprintf(fd, "Average inh. conductance: %.2f nS\n", mean_g_in);
     fprintf(fd, "Average interspike interval: %.2f ms\n", mean_isi);
     fprintf(fd, "Average firing rate : %.2f ms\n", mean_firingrate);
+
+    fclose(fd);
 }
 
 
@@ -288,6 +288,7 @@ int main(void){
     printf("Simulation time: %f s\n", simulation_time);
     statistics(sim);
     clean_up(sim);
+    
     
     // For measurement of execution time
     /*M1 = clock();

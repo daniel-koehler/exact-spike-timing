@@ -62,7 +62,6 @@ extern const int NUM_FACTORS;
 void solve_analytic(state_t *state, float *factors);
 void calc_constants(float *constants);
 void calc_factors(float dt, float *factors);
-void calc_update(state_t *update, float *factors, float g_ex, float g_in);
 
 void generate_lut(float h, int denom);
 void lookup(float t, float * factors);

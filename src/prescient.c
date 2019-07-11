@@ -15,7 +15,8 @@ void setup_sim(sim_t *sim){
     int   slots      = (sim->max_delay - sim->min_delay)/sim->h + 1;
     sim->state_buf = create_buffer(slots, sim->n);
     sim->buffered_state = (state_t *) malloc(sizeof(state_t) * sim->n);
-
+    sim->update = (state_t *) malloc(sizeof(state_t));
+    sim->tmp_mem        = (state_t *) malloc(sizeof(state_t) * sim->n);
     /* Open output files */
     fd_raster      = fopen("results/raster", "w+");
     fd_voltage     = fopen("results/voltage", "w+");
@@ -30,6 +31,8 @@ void clear_sim(sim_t *sim){
     free_buffer(sim->state_buf);
     if (sim->buffered_state)    free(sim->buffered_state);
     if (sim->top_input)         free_spikes(sim->top_input);
+    if (sim->tmp_mem)           free(sim->tmp_mem);
+    if (sim->update)            free(sim->update);
 
     if (fd_raster)              fclose(fd_raster);
     if (fd_voltage)             fclose(fd_voltage);
@@ -50,7 +53,7 @@ void create_events(sim_t *sim){
 
     sim->top_spike  = top_input  = NULL;
     sim->next_spike = next_input = NULL;
-    sim->spike_cnt  = spike_cnt  = 0;
+    spike_cnt  = 0;
 
     for(i = 0; i < n; i++){
         for(float t = sim->t_start; t <= sim->t_input; ){
@@ -76,6 +79,14 @@ void create_events(sim_t *sim){
         }
     }
     sim->top_input  = sort_spikes(top_input, spike_cnt);
+}
+
+void calc_update(state_t *update, float *factors, float g_ex, float g_in){
+    update->V_m  = 0;
+    update->g_ex = g_ex;
+    update->g_in = g_in;
+    solve_analytic(update, factors);
+    update->t_ela = 0;
 }
 
 void process_spikes(sim_t *sim, float t){
