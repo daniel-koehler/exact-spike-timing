@@ -10,7 +10,8 @@ PLOTDIR = plots
 
 TARGET = sim
 SRCS = $(wildcard $(SRCDIR)/*.c)
-TMP := $(SRCS)
+SRCS := $(filter-out $(SRCDIR)/testing.c,$(SRCS))
+
 # Canonical or prescient implementation?
 # Use 'make c=1 <rule>' for canonical implementation.
 ifdef c
@@ -24,7 +25,7 @@ OBJS = $(patsubst $(SRCDIR)/%.c,$(OBJDIR)/%.o,$(SRCS))
 PLOTS_ = $(wildcard $(PLOTDIR)/*)
 PLOTS = $(patsubst $(PLOTDIR)/%,%,$(PLOTS_))
 
-all: dir $(OBJDIR)/$(TARGET)
+all: dir clean $(OBJDIR)/$(TARGET)
 	
 test:
 	@echo $(PLOTS_)
@@ -36,7 +37,7 @@ run:
 	@$(OBJDIR)/$(TARGET)
 
 debug:
-	valgrind -v --leak-check=full --track-origins=yes $(OBJDIR)/$(TARGET)
+	valgrind -v --leak-check=full --track-origins=yes --show-leak-kinds=all $(OBJDIR)/$(TARGET)
 
 $(OBJDIR)/$(TARGET): $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
@@ -54,5 +55,5 @@ $(PLOTS):
 
 .PHONY: clean
 clean: 
-	rm -f $(OBJS) $(TARGET) *~
+	@rm -f $(OBJS) $(TARGET) *~
 	@echo "Cleaned up obj directory."

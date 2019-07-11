@@ -12,7 +12,9 @@ void setup_sim(sim_t *sim){
     Implementation-specific setup of simulation structure.
     */
 
-   /* Open output files */
+    sim->tmp_state = (state_t *) malloc(sizeof(state_t));
+    sim->spike_influence = (state_t *) malloc(sizeof(state_t));
+    /* Open output files */
     fd_raster      = fopen("results/raster", "w+");
     fd_voltage     = fopen("results/voltage", "w+");
     fd_conductance = fopen("results/conductance", "w+");
@@ -23,9 +25,14 @@ void setup_sim(sim_t *sim){
 }
 
 void clear_sim(sim_t *sim){
-    for(int i = 0; i < sim->n; i++){
-        free_spikes(sim->spikes[i]);
+    if (sim->spikes){
+        for(int i = 0; i < sim->n; i++){
+            free_spikes(sim->spikes[i]);
+        }
+        free(sim->spikes);
     }
+    if (sim->tmp_state)         free(sim->tmp_state);
+    if (sim->spike_influence)   free(sim->spike_influence);
     if (fd_raster)              fclose(fd_raster);
     if (fd_voltage)             fclose(fd_voltage);
     if (fd_conductance)         fclose(fd_conductance);
@@ -33,7 +40,7 @@ void clear_sim(sim_t *sim){
 
 void create_events(sim_t *sim){
     /*
-    Creates a poisson distributed input spike train for each neuron.
+    Creates a poisson distributed input spike train for each neuron i and stores it to sim->spike[i].
     */
     int n = sim->n;
     int i;
@@ -53,10 +60,11 @@ void create_events(sim_t *sim){
             if (t > sim->t_input) break;
 
             /* Create a new input spike */
-            new_input        = (spike_t *) malloc(sizeof(spike_t));
-            new_input->t     = t;
-            new_input->index = i;
-            new_input->next  = NULL;
+            new_input         = (spike_t *) malloc(sizeof(spike_t));
+            new_input->t      = t;
+            new_input->index  = i;
+            new_input->weight = dg_stim;
+            new_input->next   = NULL;
 
             if (spikes[i] == NULL){
                 spikes[i] = next_input = new_input;
@@ -71,12 +79,29 @@ void create_events(sim_t *sim){
     sim->spikes = spikes;
 }
 
+void calc_update(sim_t *sim, int i, float t, float dt){
+    state_t *state_mem = sim->state_mem;
+    get_factors(dt, sim->factors_dt, sim->calc_factors);
+    solve_analytic(&state_mem[i], sim->factors_dt);
+    /* Neuron in refractory period - clamp to resting potential */
+    
+    if (state_mem[i].t_ela < tau_ref){
+        state_mem[i].V_m = E_rest;
+    }
+    /* Neuron spikes */
+    else if (state_mem[i].V_m >= V_th){
+        generate_spike(sim, i, t, dt, sim->tmp_state);
+    }
+}
+
+
 void neuron_dynamics(sim_t *sim, int i, float t){
     spike_t **spikes   = sim->spikes;
     spike_t *next_spike;
     state_t *state_mem = sim->state_mem;
-    state_t *update    = sim->update;
-    state_t tmp;
+
+    state_t *tmp       = sim->tmp_state;
+    state_t *spike_influence = sim->spike_influence;
     float h     = sim->h;
     float t_s   = 0.0;      // Offset of current spike
     float t_pre = 0.0;      // Offset of previous spike
@@ -92,15 +117,15 @@ void neuron_dynamics(sim_t *sim, int i, float t){
 
     /* Go through all spikes reaching neuron i in current update interval (t, t+h] */
     while(spikes[i] && spikes[i]->t <= t+h){
-        
         t_s  = spikes[i]->t - t;
-        tmp = state_mem[i];        // store state variables at beginning of interval, in case it is needed for interpolation
+        
+        *tmp = state_mem[i];        // store state variables at beginning of interval, in case it is needed for interpolation
         if (emerging && t_s > t_em){
             /* Interval (t_pre, t_em]: neuron is still in refractory period */
             emerging = false;
             interval = t_em - t_pre;
             get_factors(interval, sim->factors_dt, sim->calc_factors);
-            solve_analytic(&state_mem[i], sim->factors_h);
+            solve_analytic(&state_mem[i], sim->factors_dt);
             state_mem[i].V_m = E_rest;
             /* Interval (t_em, t_s]: neuron has left refractory period, Vm is not clamped to resting potential anymore */
             t_pre = t_em;
@@ -108,49 +133,36 @@ void neuron_dynamics(sim_t *sim, int i, float t){
 
         /* Integrate to next incoming spike */
         interval = t_s - t_pre;
-        get_factors(interval, sim->factors_dt, sim->calc_factors);
-        solve_analytic(&state_mem[i], sim->factors_h);
-
-        /* Neuron in refractory period - clamp to resting potential */
-        if (state_mem[i].t_ela < tau_ref){
-            state_mem[i].V_m = E_rest;
-        }
-        /* Neuron spikes */
-        else if (state_mem[i].V_m >= V_th){
-            generate_spike(sim, i, t, interval, tmp);
-        }
+        calc_update(sim, i, t, interval);
 
         /* Add influence of incoming spike */
-        update->t_ela = 0.0;
-        update->V_m   = E_rest;
+        spike_influence->t_ela = 0.0;
+        spike_influence->V_m   = E_rest;
         if(spikes[i]->weight >= 0.0){
-            update->g_ex = spikes[i]->weight;
-            update->g_in = 0.0;
+            spike_influence->g_in = 0.0;
+            spike_influence->g_ex = spikes[i]->weight;
         }
         else{
-            update->g_ex = 0.0;
-            update->g_in = spikes[i]->weight;
+            spike_influence->g_ex = 0.0;
+            spike_influence->g_in = -spikes[i]->weight;
         }
-        add_state(&state_mem[i], update);
+
+        add_state(&state_mem[i], spike_influence);
 
         /* Go to next spike */
-        t_pre = spikes[i]->t;
+        t_pre = t_s;
         next_spike = spikes[i]->next;
         free(spikes[i]);
         spikes[i] = next_spike;
     }
+
     /* Integrate to end of the time step */
     interval = h - t_s;
-    get_factors(interval, sim->factors_dt, sim->calc_factors);
-    solve_analytic(&state_mem[i], sim->factors_dt);
-
-    /* Check again if neuron spikes */
-    if (state_mem[i].V_m >= V_th){
-        generate_spike(sim, i, t, interval, tmp);
-    }
+    calc_update(sim, i, t, interval);
+    
 }
 
-void generate_spike(sim_t *sim, int i, float t, float dt, state_t state0){
+void generate_spike(sim_t *sim, int i, float t, float dt, state_t *state0){
     /*
     Exact spike time of neuron i is interpolated using points (0, V_m(0)) and (dt, V_m(dt)) and 
     derivatives of the voltage for higher-order interpolations respectively. The state variables for time t
@@ -159,11 +171,14 @@ void generate_spike(sim_t *sim, int i, float t, float dt, state_t state0){
     state_t     *state_mem      = sim->state_mem;
     synapse_t   **synapses      = sim->synapses;
     float t_s;
-    float y0 = state0.V_m;
+    float y0 = state0->V_m;
     float yh = state_mem[i].V_m;
     float y0_dot, yh_dot;
+    
+    spike_t *spike;
+    float weight;
     int target;
-    spike_t spike;
+    float tspike;
 
     /* Calculate spike time */
     switch (sim->interpolation){
@@ -176,12 +191,12 @@ void generate_spike(sim_t *sim, int i, float t, float dt, state_t state0){
             break;
         
         case Quadratic:
-            y0_dot = voltage_deriv(y0, state0.g_ex, state0.g_in);
+            y0_dot = voltage_deriv(y0, state0->g_ex, state0->g_in);
             t_s = t + quadratic_int(y0, y0_dot, yh, V_th, dt);
             break;
 
         case Cubic: // not implemented yet
-            y0_dot = voltage_deriv(y0, state0.g_ex, state0.g_in);
+            y0_dot = voltage_deriv(y0, state0->g_ex, state0->g_in);
             yh_dot = voltage_deriv(yh, state_mem[i].g_ex, state_mem[i].g_in);
             t_s = t + cubic_int(y0, y0_dot, yh, yh_dot, V_th, dt);
             break;
@@ -190,17 +205,20 @@ void generate_spike(sim_t *sim, int i, float t, float dt, state_t state0){
 
     /* For each neuron j connected to spiking neuron i add a new spike */
     for(int j = 0; j < sim->n_syn; j++){
-        target = synapses[i][j].target;
-        spike.t     = t_s + synapses[i][j].delay;
-        spike.index = target;
+        target = synapses[i][j].target;        
+        tspike     = t_s + synapses[i][j].delay;
         if (synapses[i][j].type == Inhibitory){
-            spike.weight = -dg_in;
+            weight = -synapses[i][j].weight;
         }
         else{
-            spike.weight = dg_ex;
+            weight = synapses[i][j].weight;
         }
-        sortin_spike(&sim->spikes[j], &spike);
+        spike = new_spike(target, tspike, weight);
+        sortin_spike(&sim->spikes[target], spike);
     }
+
+    state_mem[i].t_ela = 0;
+    state_mem[i].V_m   = E_rest;
 
     /* Save spikes off all neuron together in linked list (for evaluation of statistics) */
     if (!sim->top_spike){

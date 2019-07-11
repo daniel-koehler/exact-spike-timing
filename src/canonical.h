@@ -48,9 +48,9 @@ typedef struct sim {
     spike_t *top_spike;
     int spike_cnt;
     state_t *state_mem;             // stores state variables for each neuron
-    state_t *tmp_mem;               // holds copy of state_mem
-    
-    state_t *update;
+    state_t *tmp_state;             // holds copy of an old state
+    state_t *spike_influence;
+    //state_t *update;
 
     synapse_t **synapses;           // stores synaptic connections between neurons
 } sim_t;
@@ -59,7 +59,9 @@ void setup_sim(sim_t *sim);
 void clear_sim(sim_t *sim);
 void create_events(sim_t *sim);
 void process_spikes(sim_t *sim, float t);
+void calc_update(sim_t *sim, int i, float t, float dt);
 void neuron_dynamics(sim_t *sim, int i, float t);
-void generate_spike(sim_t *sim, int i, float t, float dt, state_t state0);
+void generate_spike(sim_t *sim, int i, float t, float dt, state_t *state0);
+void simulation_loop(sim_t *sim);
 
 #endif
