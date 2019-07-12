@@ -19,9 +19,9 @@ state_buf_t *create_buffer(int slots, int slot_size){
     buf->slots     = slots;
     buf->slot_size = slot_size;
     buf->states = (state_t **) malloc(sizeof(state_t*) * slots);
-    for(int i = 0; i < slots; i++){
+    for (int i = 0; i < slots; i++){
         buf->states[i] = malloc(sizeof(state_t) * slot_size);
-        for(int j = 0; j < slot_size; j++){
+        for (int j = 0; j < slot_size; j++){
             buf->states[i][j] = ZERO_STATE;
         }
     }
@@ -33,7 +33,7 @@ void free_buffer(state_buf_t * buf){
     /*
     Free allocated memory of buf.
     */
-    for(int i = 0; i < buf->slots; i++){
+    for (int i = 0; i < buf->slots; i++){
         free(buf->states[i]);
     }
     free(buf->states);
@@ -57,7 +57,7 @@ void buf_write(state_buf_t *buf, state_t *state, int index, int rel_slot){
         return;
     }
     int abs_slot = buf->curr_slot + rel_slot;
-    if(abs_slot >= buf->slots) abs_slot -= buf->slots;
+    if (abs_slot >= buf->slots) abs_slot -= buf->slots;
     buf->states[abs_slot][index] = *state;
 }
 
@@ -75,7 +75,7 @@ void buf_add(state_buf_t *buf, state_t *state, int index, int rel_slot){
         return;
     }
     int abs_slot = buf->curr_slot + rel_slot;
-    if(abs_slot >= buf->slots) abs_slot -= buf->slots;
+    if (abs_slot >= buf->slots) abs_slot -= buf->slots;
     add_state(&buf->states[abs_slot][index], state);
 }
 
@@ -83,21 +83,21 @@ void buf_read_all(state_buf_t *buf, state_t *res){
     /*
     Reads buffered state variables for all neurons, clears the current slot of the buffer and increments 'curr_slot'.
     */   
-    for(int i = 0; i < buf->slot_size; i++){
+    for (int i = 0; i < buf->slot_size; i++){
         buf_read(buf, &res[i], i);
         buf_write(buf, &ZERO_STATE, i, 0);
     }
     buf->curr_slot += 1;
-    if(buf->curr_slot >= buf->slots) buf->curr_slot = 0;
+    if (buf->curr_slot >= buf->slots) buf->curr_slot = 0;
 };
 
 void buf_write_all(state_buf_t *buf, state_t *states, int rel_slot){  
-    for(int i = 0; i < buf->slot_size; i++){
+    for (int i = 0; i < buf->slot_size; i++){
         buf_write(buf, &states[i], i, rel_slot);
     }
 }
 void buf_add_all(state_buf_t *buf, state_t *states, int rel_slot){
-    for(int i = 0; i < buf->slot_size; i++){
+    for (int i = 0; i < buf->slot_size; i++){
         buf_add(buf, &states[i], i, rel_slot);
     }
 }

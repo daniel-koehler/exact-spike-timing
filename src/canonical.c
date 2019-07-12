@@ -14,6 +14,11 @@ void setup_sim(sim_t *sim){
 
     sim->tmp_state = (state_t *) malloc(sizeof(state_t));
     sim->spike_influence = (state_t *) malloc(sizeof(state_t));
+
+    sim->factors_dt = (float *) malloc(sizeof(float) * NUM_FACTORS);
+    sim->spike_cnt  = 0;
+    sim->top_spike  = NULL;
+
     /* Open output files */
     fd_raster      = fopen("results/raster", "w+");
     fd_voltage     = fopen("results/voltage", "w+");
@@ -26,7 +31,7 @@ void setup_sim(sim_t *sim){
 
 void clear_sim(sim_t *sim){
     if (sim->spikes){
-        for(int i = 0; i < sim->n; i++){
+        for (int i = 0; i < sim->n; i++){
             free_spikes(sim->spikes[i]);
         }
         free(sim->spikes);
@@ -50,10 +55,10 @@ void create_events(sim_t *sim){
     spike_t *next_input  = NULL;
     spike_t **spikes = (spike_t **) malloc(sizeof(spike_t*) * n);
 
-    for(i = 0; i < n; i++){
+    for (i = 0; i < n; i++){
         spikes[i] = NULL;
         next_input = NULL;
-        for(float t = sim->t_start; t <= sim->t_input; ){
+        for (float t = sim->t_start; t <= sim->t_input; ){
             /* Add up exponentially distributed intervals to generate Poisson spike train */
             dt  = -log(1.0 - frand()) * sim->t_avg;
             t  += dt;
@@ -116,7 +121,7 @@ void neuron_dynamics(sim_t *sim, int i, float t){
     }
 
     /* Go through all spikes reaching neuron i in current update interval (t, t+h] */
-    while(spikes[i] && spikes[i]->t <= t+h){
+    while (spikes[i] && spikes[i]->t <= t+h){
         t_s  = spikes[i]->t - t;
         
         *tmp = state_mem[i];        // store state variables at beginning of interval, in case it is needed for interpolation
@@ -138,7 +143,7 @@ void neuron_dynamics(sim_t *sim, int i, float t){
         /* Add influence of incoming spike */
         spike_influence->t_ela = 0.0;
         spike_influence->V_m   = E_rest;
-        if(spikes[i]->weight >= 0.0){
+        if (spikes[i]->weight >= 0.0){
             spike_influence->g_in = 0.0;
             spike_influence->g_ex = spikes[i]->weight;
         }
@@ -204,7 +209,7 @@ void generate_spike(sim_t *sim, int i, float t, float dt, state_t *state0){
     fprintf(fd_raster, "%f %i\n", t_s, i);
 
     /* For each neuron j connected to spiking neuron i add a new spike */
-    for(int j = 0; j < sim->n_syn; j++){
+    for (int j = 0; j < sim->n_syn; j++){
         target = synapses[i][j].target;        
         tspike     = t_s + synapses[i][j].delay;
         if (synapses[i][j].type == Inhibitory){
@@ -245,13 +250,13 @@ void simulation_loop(sim_t *sim){
     float h = sim->h;
     int   n = sim->n;
     state_t *state_mem = sim->state_mem;
-    for(t=t_start; t <= t_end; t+=h){
+    for (t=t_start; t <= t_end; t+=h){
         if (t >= t_output){
             printf("t = %.0f ms\n", t);
             t_output += 0.1 * (t_end - t_start);
         }
         /* Update interval (t, t+h] */   
-        for(int i = 0; i < n; i++){
+        for (int i = 0; i < n; i++){
             neuron_dynamics(sim, i, t);
         }
         /* Write state variables to output files */

@@ -12,11 +12,18 @@ void setup_sim(sim_t *sim){
     /*
     Implementation-specific setup of simulation structure.
     */
-    int   slots      = (sim->max_delay - sim->min_delay)/sim->h + 1;
-    sim->state_buf = create_buffer(slots, sim->n);
+    int slots = (sim->max_delay - sim->min_delay)/sim->h + 1;
+    sim->state_buf      = create_buffer(slots, sim->n);
     sim->buffered_state = (state_t *) malloc(sizeof(state_t) * sim->n);
-    sim->update = (state_t *) malloc(sizeof(state_t));
+    sim->update         = (state_t *) malloc(sizeof(state_t));
     sim->tmp_mem        = (state_t *) malloc(sizeof(state_t) * sim->n);
+
+    sim->factors_h  = (float *) malloc(sizeof(float) * NUM_FACTORS);
+    sim->factors_dt = (float *) malloc(sizeof(float) * NUM_FACTORS);
+    sim->spike_cnt  = 0;
+    sim->top_spike  = NULL;
+    calc_factors(sim->h, sim->factors_h);
+
     /* Open output files */
     fd_raster      = fopen("results/raster", "w+");
     fd_voltage     = fopen("results/voltage", "w+");
@@ -55,8 +62,8 @@ void create_events(sim_t *sim){
     sim->next_spike = next_input = NULL;
     spike_cnt  = 0;
 
-    for(i = 0; i < n; i++){
-        for(float t = sim->t_start; t <= sim->t_input; ){
+    for (i = 0; i < n; i++){
+        for (float t = sim->t_start; t <= sim->t_input; ){
             /* Add up exponentially distributed intervals to generate Poisson spike train */
             dt  = -log(1.0 - frand()) * sim->t_avg;
             t  += dt;
@@ -89,13 +96,13 @@ void calc_update(state_t *update, float *factors, float g_ex, float g_in){
     update->t_ela = 0;
 }
 
-void process_spikes(sim_t *sim, float t){
+void process_input(sim_t *sim, float t){
     /*
     Calculate influence of input spikes and write it to corresponding entry in state_buf.
     */
     spike_t *spike = sim->next_input;
     float t_s;
-    while(spike){
+    while (spike){
         if (spike->t > t + sim->min_delay) break;
         t_s = spike->t - t;
         get_factors(sim->h - t_s, sim->factors_dt, sim->calc_factors);
@@ -193,7 +200,7 @@ void generate_spike(sim_t *sim, int i, float t){
     }
     
     /* Propagate spike to each target neuron */
-    for(int j = 0; j < sim->n_syn; j++){
+    for (int j = 0; j < sim->n_syn; j++){
         target = synapses[i][j].target;
         delay  = synapses[i][j].delay / h;
         buf_add(state_buf, update, target, delay);
@@ -226,16 +233,16 @@ void simulation_loop(sim_t *sim){
     float h = sim->h;
     int   n = sim->n;
     state_t *state_mem = sim->state_mem;
-    for(t=t_start; t <= t_end; t+=h){
+    for (t=t_start; t <= t_end; t+=h){
         if (t >= t_output){
             printf("t = %.0f ms\n", t);
             t_output += 0.1 * (t_end - t_start);
         }
         /* Update interval (t, t+h] */   
-        process_spikes(sim, t);
+        process_input(sim, t);
         buf_read_all(sim->state_buf, sim->buffered_state);
         memcpy(sim->tmp_mem, state_mem, sizeof(state_t) * sim->n);    // copy of state variables at time t
-        for(int i = 0; i < n; i++){
+        for (int i = 0; i < n; i++){
             subthreshold_dynamics(sim, i);
 
             /* Neuron spikes */

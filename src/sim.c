@@ -12,13 +12,10 @@
 #include "prescient.h"
 #endif
 
-clock_t M1, M2;
-float P1;
-
 void print_state_mem(sim_t *sim){
     state_t *state_mem = sim->state_mem;
     int   n          = sim->n;
-    for(int i=0; i<n; i++){
+    for (int i=0; i<n; i++){
         printf("Index %i: t_ela = %.2f, V_m = %.2f, g_ex = %.2f, g_in = %.2f\n", i, state_mem[i].t_ela,\
         state_mem[i].V_m, state_mem[i].g_ex, state_mem[i].g_in);
     }
@@ -41,7 +38,7 @@ void setup_parameters(sim_t *sim){
     sim->max_delay     = 10 * sim->h;
     sim->rand_delays   = false;
     sim->rand_states   = true;
-    sim->calc_factors  = Lookup;
+    sim->calc_factors  = Calculate;
 
     sim->n_ex      = floor(sim->n * sim->r_ei / (sim->r_ei + 1));
     sim->n_in      = sim->n - sim->n_ex;
@@ -59,7 +56,7 @@ void initialize_state_mem(sim_t *sim){
 
     sim->state_mem = state_mem = (state_t *) malloc(sizeof(state_t)*n);
 
-    for(i = 0; i < n; i++){
+    for (i = 0; i < n; i++){
         if (sim->rand_states){
             state_mem[i] = (state_t) {
             .t_ela = tau_ref + h,
@@ -90,22 +87,24 @@ void create_network(sim_t *sim){
     float min_delay  = sim->min_delay;
     float delay, weight;
     synapse_t **synapses = (synapse_t **) malloc(sizeof(synapse_t *) * n);
-    for(i = 0; i < n; i++){
+    for (i = 0; i < n; i++){
         synapses[i] = (synapse_t *) malloc(sizeof(synapse_t) * n_syn);
-        for(j = 0; j < n_syn; j++){
+        for (j = 0; j < n_syn; j++){
             /* Target index */
             synapses[i][j].target = floor(frand()*n);
             /* Synaptic propagation delays */
-            if(sim->rand_delays){               
-                delay = frand()*(max_delay - min_delay) + min_delay;
+            if (sim->rand_delays){               
+                delay = frand() * (max_delay - min_delay) + min_delay;
                 delay = ((int)(delay / sim->h) * sim->h);   // let delay be multiple of h
                 printf("Delay: %f\n", delay);
             }
-            else     delay      = min_delay;
+            else{
+                delay      = min_delay;
+            }
             synapses[i][j].delay = delay;
 
             /* Synaptic weights */
-            if(i < n_ex){
+            if (i < n_ex){
                 weight = dg_ex;
                 synapses[i][j].type = Excitatory;              
             }
@@ -127,24 +126,19 @@ sim_t *setup(void){
     sim_t *sim = (sim_t *) malloc(sizeof(sim_t));
 
     setup_parameters(sim);
+
     setup_sim(sim);
+
     create_events(sim);
 
     create_network(sim);
 
     initialize_state_mem(sim);
 
-    if(sim->calc_factors == Lookup){
+    if (sim->calc_factors == Lookup){
         generate_lut(sim->h, 100);      // generates lookup table with 100+1 entries for time interval [0 h]
-    }
-    sim->factors_h  = (float *) malloc(sizeof(float) * NUM_FACTORS);
-    sim->factors_dt = (float *) malloc(sizeof(float) * NUM_FACTORS);
-    sim->spike_cnt  = 0;
-    sim->top_spike  = NULL;
-    calc_factors(sim->h, sim->factors_h);
-    
+    }  
     return(sim);
-
 }
 
 void clean_up(sim_t *sim){
@@ -154,7 +148,7 @@ void clean_up(sim_t *sim){
     if (sim){
         clear_sim(sim);     
         if (sim->synapses){
-            for(int i = 0; i < sim->n; i++){
+            for (int i = 0; i < sim->n; i++){
                 free(sim->synapses[i]);
             }
             free(sim->synapses);
@@ -163,11 +157,9 @@ void clean_up(sim_t *sim){
         if (sim->factors_h)         free(sim->factors_h);
         if (sim->factors_dt)        free(sim->factors_dt);
         free_lut();
-        if (sim->top_spike)         free_spikes(sim->top_spike);   
-        
+        if (sim->top_spike)         free_spikes(sim->top_spike);           
     }
     free(sim);
-    
 }
 
 float calc_avgvoltage(state_t *state_mem, int n){
@@ -185,21 +177,21 @@ float calc_firingrate(spike_t *head, int n, float t_span){
     /*
     Calculates the average firing rate of each neuron and returns average firing rate of all neurons.
     */
-    if(head){
+    if (head){
         FILE *fd = fopen("results/firingrate", "w+");
         spike_t *curr_spike = head;
         int count[n];
         int   i   = 0;
         float sum = 0.0;
-        for(i = 0; i < n; i++){
+        for (i = 0; i < n; i++){
             count[i] = 0;
         }
-        while(curr_spike){
+        while (curr_spike){
             i = curr_spike->index;
             count[i] += 1;
             curr_spike = curr_spike->next;        
         }
-        for(i = 0; i < n; i++){
+        for (i = 0; i < n; i++){
             sum += count[i];
             fprintf(fd, "%d\n", count[i]);
         }
@@ -214,17 +206,17 @@ float calc_isi(spike_t *head, int n, int spike_cnt){
     Calculates interspike intervals (ISIs) and writes them into a file. Returns avergage ISI.
     */
     head = sort_spikes(head, spike_cnt);
-    if(head){
+    if (head){
         FILE *fd = fopen("results/isi", "w+");
         spike_t *spike = head;
         float t0[n];
         int i, j = 0;
         float isi;
         float sum = 0.0;
-        for(i = 0; i < n; i++){
+        for (i = 0; i < n; i++){
             t0[i] = 0;
         }
-        while(spike){
+        while (spike){
             i = spike->index;
             if (t0[i] == 0){    // first spike of neuron i
                 t0[i] = spike->t;   
@@ -287,11 +279,12 @@ int main(void){
     simulation_time = ((float) (end - start) / CLOCKS_PER_SEC);
     printf("Simulation time: %f s\n", simulation_time);
     statistics(sim);
-    clean_up(sim);
-    
+    clean_up(sim);  
     
     // For measurement of execution time
-    /*M1 = clock();
+    /*clock_t M1, M2;
+    float P1;
+    M1 = clock();
     M2 = clock();
     P1 = ((float) (M2 - M1) / CLOCKS_PER_SEC);
     printf("Performance time: %f s\n", P1);*/    

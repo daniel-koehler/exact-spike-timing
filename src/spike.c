@@ -3,6 +3,9 @@
 #include "spike.h"
 
 spike_t *new_spike(int index, float t, float weight){
+    /*
+    Allocate and initialize new spike.
+    */
     spike_t *spike = (spike_t *) malloc(sizeof(spike_t));
     spike->index  = index;
     spike->t      = t;
@@ -18,8 +21,8 @@ int compare_spikes(const void *p1, const void *p2){
     spike_t *spike1 = *(spike_t **) p1;
     spike_t *spike2 = *(spike_t **) p2;
 
-    if(spike1->t < spike2->t) return -1;
-    if(spike1->t > spike2->t) return  1;
+    if (spike1->t < spike2->t) return -1;
+    if (spike1->t > spike2->t) return  1;
     else return 0;
 }
 
@@ -30,13 +33,13 @@ spike_t *sort_spikes(spike_t *head, int spike_cnt){
     spike_t *curr_spike = head;
     spike_t **spike_array = (spike_t **) malloc(sizeof(spike_t *)*spike_cnt);
     int i = 0;
-    if(spike_cnt > 0){
-        while(curr_spike){
+    if (spike_cnt > 0){
+        while (curr_spike){
             spike_array[i++] = curr_spike;
             curr_spike = curr_spike->next;
         }
         qsort(spike_array, spike_cnt, sizeof(spike_t *), compare_spikes);
-        for(i = 0; i < spike_cnt - 1; i++){
+        for (i = 0; i < spike_cnt - 1; i++){
             spike_array[i]->next = spike_array[i+1];
         }
         spike_array[spike_cnt - 1]->next = NULL;
@@ -56,7 +59,7 @@ void print_spikes(spike_t *head){
     Print all spikes contained in a linked list.
     */
     spike_t *curr_spike = head;
-    while(curr_spike){
+    while (curr_spike){
         print_spike(curr_spike);
         curr_spike = curr_spike->next;
     }
@@ -66,12 +69,12 @@ void append_spike(spike_t **head, spike_t *spike){
     /*
     Appends 'spike' to a linked list, whose start is given by 'head'.
     */
-    if(!head){  // Special case: empty list
+    if (!head){  // Special case: empty list
         *head = spike;
         return;
     }
     spike_t *curr = *head;
-    while(curr){
+    while (curr){
         if (curr->next){
             curr = curr->next;
         }
@@ -87,13 +90,13 @@ void sortin_spike(spike_t **head, spike_t *spike){
     /*
     Sorts 'spike' w.r.t its time t into a linked list, whose start is given by 'head'.
     */
-    if(!(*head) || (*head)->t >= spike->t){
+    if (!(*head) || (*head)->t >= spike->t){
         spike->next = *head;
         *head = spike;
         return;
     }
     spike_t *curr = *head;
-    while(curr->next && curr->next->t < spike->t){
+    while (curr->next && curr->next->t < spike->t){
         curr = curr->next;
     }
     spike->next = curr->next;
@@ -102,7 +105,7 @@ void sortin_spike(spike_t **head, spike_t *spike){
 
 void free_spikes(spike_t *top_input){
     spike_t *tmp;
-    while(top_input){
+    while (top_input){
         tmp = top_input;
         top_input = top_input->next;
         free(tmp);

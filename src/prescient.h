@@ -38,7 +38,7 @@ typedef struct sim {
     
     interpolation_t interpolation;
 
-    /* external stimulus / spikes */
+    /* external stimulus */
     spike_t *next_input;
     spike_t *top_input;
 
@@ -60,7 +60,7 @@ void setup_sim(sim_t *sim);
 void clear_sim(sim_t *sim);
 void create_events(sim_t *sim);
 void calc_update(state_t *update, float *factors, float g_ex, float g_in);
-void process_spikes(sim_t *sim, float t);
+void process_input(sim_t *sim, float t);
 void subthreshold_dynamics(sim_t *sim, int i);
 void generate_spike(sim_t *sim, int i, float t);
 void simulation_loop(sim_t *sim);

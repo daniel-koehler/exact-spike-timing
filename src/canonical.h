@@ -32,7 +32,6 @@ typedef struct sim {
     float t_avg;            // average ISI for external stimulation
 
     /* Factors and for exponential integration */
-    float *factors_h;
     float *factors_dt;
     
     interpolation_t interpolation;
@@ -50,7 +49,6 @@ typedef struct sim {
     state_t *state_mem;             // stores state variables for each neuron
     state_t *tmp_state;             // holds copy of an old state
     state_t *spike_influence;
-    //state_t *update;
 
     synapse_t **synapses;           // stores synaptic connections between neurons
 } sim_t;

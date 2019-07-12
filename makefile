@@ -3,13 +3,15 @@ CFLAGS = -Wall -g
 # Libraries: math.h
 LDFLAGS = -lm
 
+# Directories
 OBJDIR = obj
 SRCDIR = src
 RESDIR = results
 PLOTDIR = plots
 
+# Files
 TARGET = sim
-SRCS = $(wildcard $(SRCDIR)/*.c)
+SRCS := $(wildcard $(SRCDIR)/*.c)
 SRCS := $(filter-out $(SRCDIR)/testing.c,$(SRCS))
 
 # Canonical or prescient implementation?
@@ -22,13 +24,11 @@ else
 endif
 
 OBJS = $(patsubst $(SRCDIR)/%.c,$(OBJDIR)/%.o,$(SRCS))
-PLOTS_ = $(wildcard $(PLOTDIR)/*)
-PLOTS = $(patsubst $(PLOTDIR)/%,%,$(PLOTS_))
+PLOTS := $(wildcard $(PLOTDIR)/*)
+PLOTS := $(patsubst $(PLOTDIR)/%,%,$(PLOTS))
 
 all: dir clean $(OBJDIR)/$(TARGET)
-	
-test:
-	@echo $(PLOTS_)
+
 dir:
 	@mkdir -p $(OBJDIR)
 	@mkdir -p $(RESDIR)

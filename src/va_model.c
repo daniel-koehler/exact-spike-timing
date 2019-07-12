@@ -53,7 +53,7 @@ void calc_factors(float dt, float *factors){
 
     /* Integration constants - calculated only once */
     static float constants[4] = {0};
-    if(!constants[0]){
+    if (!constants[0]){
         constants[0] = (E_L - E_ex) * R_L * tau_L / (tau_L - tau_ex);
         constants[1] = (E_L - E_in) * R_L * tau_L / (tau_L - tau_in);
         constants[2] = I_inj * R_L;
@@ -81,7 +81,7 @@ void generate_lut(float h, int denom){
     lut.denom = denom;
     lut.idx_factor = denom/h;
     lut.values = (float **) malloc(sizeof(float *) * (denom + 1));
-    for(t = 0.0, i = 0; i <= denom; t += resolution, i++){
+    for (t = 0.0, i = 0; i <= denom; t += resolution, i++){
         lut.values[i] = (float *) malloc(sizeof(float) * NUM_FACTORS);
         calc_factors(t, lut.values[i]);        
     }
@@ -92,7 +92,7 @@ void lookup(float t, float *factors){
     Returns integration factors for time t stored in lut. generate_lut() has to be called before once.
     */
     static int lookup_size = 7 * 4;   // NUM_FACTORS * sizeof(float)
-    if(t > lut.t_max || t < 0.0){
+    if (t > lut.t_max || t < 0.0){
         printf("Time %f is out of the range of the lookup table.\n", t);
         return;
     }
@@ -101,20 +101,22 @@ void lookup(float t, float *factors){
 }
 
 void free_lut(){
-    for(int i = 0; i <= lut.denom; i++){
-        free(lut.values[i]);
+    if (lut.values){
+        for (int i = 0; i <= lut.denom; i++){
+            free(lut.values[i]);
+        }
+        free(lut.values);
     }
-    free(lut.values);
 }
 
 void get_factors(float dt, float *factors, factor_sel_t sel){
     /*
     Writes integration 'factors' for time interval dt to factors. 'sel' can be either 'Calculate' or 'Lookup'. 
     */
-    if(sel == Calculate){        
+    if (sel == Calculate){        
         calc_factors(dt, factors);
     }
-    else{
+    else if (sel == Lookup){
         lookup(dt, factors);
     }
 }
