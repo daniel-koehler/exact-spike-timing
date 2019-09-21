@@ -17,7 +17,7 @@ typedef enum interpolation {
     Cubic
 } interpolation_t;
 
-typedef enum {Calculate, Lookup} factor_sel_t;
+typedef enum {Calculate, Lookup, Linearized} factor_sel_t;
 
 typedef struct lut{
     float **values;

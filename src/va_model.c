@@ -41,9 +41,10 @@ void solve_analytic(state_t *state, float *factors){
     'calc_factors()' based on the time interval for exponential integration.
     */
     state->t_ela += factors[0];
+    state->V_m    = factors[3] * state->V_m + factors[4] * state->g_ex + factors[5] * state->g_in + factors[6];
     state->g_ex   = factors[1] * state->g_ex;
     state->g_in   = factors[2] * state->g_in;
-    state->V_m    = factors[3] * state->V_m + factors[4] * state->g_ex + factors[5] * state->g_in + factors[6];
+    
 }
 
 void calc_factors(float dt, float *factors){
@@ -67,6 +68,29 @@ void calc_factors(float dt, float *factors){
     factors[4] = (factors[3] - factors[1]) * constants[0];
     factors[5] = (factors[3] - factors[2]) * constants[1];
     factors[6] = exp(tau_L * dt) * constants[2] * (constants[3] - factors[3]);
+}
+
+void calc_lin_factors(float dt, float *factors){
+    /*
+    Calculates 7 float integration factors for time interval dt and writes them to factors. The exponential terms are linearized.
+    */
+
+    /* Integration constants - calculated only once */
+    static float constants[4] = {0};
+    if (!constants[0]){
+        constants[0] = (E_L - E_ex) * R_L * tau_L / (tau_L - tau_ex);
+        constants[1] = (E_L - E_in) * R_L * tau_L / (tau_L - tau_in);
+        constants[2] = I_inj * R_L;
+        constants[3] = (pow(tau_L, 2) + tau_ex*tau_in + tau_ex*tau_L + tau_in*tau_L)/((tau_ex + tau_L)*(tau_in + tau_L));
+    }
+
+    factors[0] = dt;
+    factors[1] = 1 - tau_ex * dt;
+    factors[2] = 1 -tau_in * dt;
+    factors[3] = 1 -tau_L  * dt;
+    factors[4] = (factors[3] - factors[1]) * constants[0];
+    factors[5] = (factors[3] - factors[2]) * constants[1];
+    factors[6] = (1 + tau_L * dt) * constants[2] * (constants[3] - factors[3]);
 }
 
 void generate_lut(float h, int denom){
@@ -113,11 +137,17 @@ void get_factors(float dt, float *factors, factor_sel_t sel){
     /*
     Writes integration 'factors' for time interval dt to factors. 'sel' can be either 'Calculate' or 'Lookup'. 
     */
-    if (sel == Calculate){        
+    switch (sel)
+    {
+    case Calculate:
         calc_factors(dt, factors);
-    }
-    else if (sel == Lookup){
+        break;
+    case Lookup:
         lookup(dt, factors);
+        break;
+    case Linearized:
+        calc_lin_factors(dt, factors);
+        break;
     }
 }
 
